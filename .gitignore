@@ -1,0 +1,8 @@
+node_modules/
+state/
+*.log
+.env
+.DS_Store
+Thumbs.db
+screenshots/
+nul
