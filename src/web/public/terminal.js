@@ -14,6 +14,18 @@ class TerminalPane {
     this.reconnectTimer = null;
     this._reconnectAttempts = 0;
     this._maxReconnectAttempts = 10;
+    this._gotFirstData = false;
+  }
+
+  _log(msg) {
+    console.log('[Terminal]', msg);
+  }
+
+  _status(msg, color) {
+    if (this.term) {
+      const c = color === 'red' ? '31' : color === 'green' ? '32' : color === 'yellow' ? '33' : '34';
+      this.term.write('\x1b[1;' + c + 'm' + msg + '\x1b[0m\r\n');
+    }
   }
 
   mount() {
@@ -22,17 +34,16 @@ class TerminalPane {
       console.error('[Terminal] Container not found:', this.containerId);
       return;
     }
-    container.innerHTML = ''; // clear placeholder
+    container.innerHTML = '';
 
-    // Verify xterm.js is loaded
     if (typeof Terminal === 'undefined') {
-      console.error('[Terminal] xterm.js (Terminal) is not loaded. Check vendor scripts.');
-      container.innerHTML = '<div style="padding:16px;color:#f38ba8;font-size:13px;">Error: xterm.js not loaded. Check browser console.</div>';
+      console.error('[Terminal] xterm.js not loaded');
+      container.innerHTML = '<div style="padding:16px;color:#f38ba8;font-size:13px;">Error: xterm.js not loaded</div>';
       return;
     }
     if (typeof FitAddon === 'undefined') {
-      console.error('[Terminal] xterm-addon-fit (FitAddon) is not loaded. Check vendor scripts.');
-      container.innerHTML = '<div style="padding:16px;color:#f38ba8;font-size:13px;">Error: FitAddon not loaded. Check browser console.</div>';
+      console.error('[Terminal] FitAddon not loaded');
+      container.innerHTML = '<div style="padding:16px;color:#f38ba8;font-size:13px;">Error: FitAddon not loaded</div>';
       return;
     }
 
@@ -73,41 +84,35 @@ class TerminalPane {
       this.fitAddon = new FitAddon.FitAddon();
       this.term.loadAddon(this.fitAddon);
 
-      // Load web links addon if available
       if (typeof WebLinksAddon !== 'undefined') {
         this.term.loadAddon(new WebLinksAddon.WebLinksAddon());
       }
 
       this.term.open(container);
-      console.log('[Terminal] xterm opened in', this.containerId, 'for session', this.sessionId);
+      this._log('xterm opened in ' + this.containerId + ' for session ' + this.sessionId);
 
-      // Show connecting message
-      this.term.write('\x1b[1;34mConnecting to session...\x1b[0m\r\n');
+      this._status('Connecting to session...', 'blue');
 
-      // Small delay to ensure container has dimensions before fitting
       requestAnimationFrame(() => {
         try {
           this.fitAddon.fit();
-          console.log('[Terminal] Fitted:', this.term.cols, 'x', this.term.rows);
+          this._log('Fitted: ' + this.term.cols + 'x' + this.term.rows);
         } catch (e) {
-          console.error('[Terminal] fitAddon.fit() failed:', e.message);
+          this._log('fit() failed: ' + e.message);
         }
+        this._log('Calling connect()...');
         this.connect();
       });
 
-      // Forward user input to WebSocket
       this.term.onData((data) => {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
           this.ws.send(JSON.stringify({ type: 'input', data }));
         }
       });
 
-      // Auto-resize on container size change
       this._resizeObserver = new ResizeObserver(() => {
         if (this.fitAddon) {
-          try {
-            this.fitAddon.fit();
-          } catch (_) {}
+          try { this.fitAddon.fit(); } catch (_) {}
           if (this.ws && this.ws.readyState === WebSocket.OPEN) {
             this.ws.send(JSON.stringify({ type: 'resize', cols: this.term.cols, rows: this.term.rows }));
           }
@@ -115,75 +120,101 @@ class TerminalPane {
       });
       this._resizeObserver.observe(container);
     } catch (err) {
-      console.error('[Terminal] Failed to initialize xterm:', err);
+      console.error('[Terminal] Init failed:', err);
       container.innerHTML = '<div style="padding:16px;color:#f38ba8;font-size:13px;">Terminal init failed: ' + err.message + '</div>';
     }
   }
 
   connect() {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) return;
+    this._log('connect() entered, ws=' + (this.ws ? 'exists(state=' + this.ws.readyState + ')' : 'null'));
+
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this._log('Already connected, skipping');
+      return;
+    }
+
+    // Close any stale WebSocket before creating a new one
+    if (this.ws) {
+      try { this.ws.onclose = null; this.ws.onerror = null; this.ws.close(); } catch (_) {}
+      this.ws = null;
+    }
 
     const token = localStorage.getItem('cwm_token');
+    this._log('Token from localStorage: ' + (token ? token.substring(0, 12) + '...' : 'NULL'));
+
     if (!token) {
-      console.error('[Terminal] No auth token in localStorage (cwm_token)');
-      if (this.term) this.term.write('\x1b[1;31mNo auth token. Please log in again.\x1b[0m\r\n');
+      this._status('No auth token. Please log in again.', 'red');
       return;
     }
 
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${location.host}/ws/terminal?token=${encodeURIComponent(token)}&sessionId=${this.sessionId}`;
-    console.log('[Terminal] Connecting WebSocket for session', this.sessionId);
+    const wsUrl = protocol + '//' + location.host + '/ws/terminal?token=' + encodeURIComponent(token) + '&sessionId=' + this.sessionId;
+    this._log('Opening WebSocket: ' + wsUrl.substring(0, 80) + '...');
 
-    this.ws = new WebSocket(wsUrl);
+    try {
+      this.ws = new WebSocket(wsUrl);
+    } catch (err) {
+      this._log('WebSocket constructor threw: ' + err.message);
+      this._status('WebSocket failed: ' + err.message, 'red');
+      return;
+    }
 
     this.ws.onopen = () => {
       this.connected = true;
       this._reconnectAttempts = 0;
-      console.log('[Terminal] WebSocket connected for session', this.sessionId);
-      // Send initial terminal size
+      this._log('WebSocket OPEN');
+      this._status('Connected. Starting session...', 'green');
       this.ws.send(JSON.stringify({ type: 'resize', cols: this.term.cols, rows: this.term.rows }));
     };
 
     this.ws.onmessage = (event) => {
-      // Check if it's a control message (JSON) or raw terminal output
       const data = event.data;
+
+      if (!this._gotFirstData) {
+        this._gotFirstData = true;
+        this._log('First data received (' + data.length + ' bytes)');
+      }
+
       if (typeof data === 'string' && data.charAt(0) === '{') {
         try {
           const msg = JSON.parse(data);
           if (msg.type === 'exit') {
-            this.term.write('\r\n\x1b[1;31m[Process exited with code ' + msg.exitCode + ']\x1b[0m\r\n');
+            this._status('[Process exited with code ' + msg.exitCode + ']', 'red');
             this.connected = false;
+            return;
           } else if (msg.type === 'error') {
-            this.term.write('\r\n\x1b[1;31m[Error: ' + msg.message + ']\x1b[0m\r\n');
+            this._status('[Error: ' + msg.message + ']', 'red');
+            return;
           } else if (msg.type === 'output') {
-            // Fallback: server sent JSON-wrapped output
             this.term.write(msg.data);
+            return;
           }
-          return;
-        } catch (_) { /* not JSON, treat as raw output */ }
+        } catch (_) {}
       }
-      // Raw terminal output — write directly (fastest path)
       this.term.write(data);
     };
 
     this.ws.onclose = (event) => {
       this.connected = false;
-      console.log('[Terminal] WebSocket closed for session', this.sessionId, 'code:', event.code);
+      this._log('WebSocket CLOSED code=' + event.code + ' reason=' + (event.reason || 'none'));
+
+      if (event.code === 1011) {
+        this._status('[Server error: PTY session failed to spawn]', 'red');
+      }
 
       if (this._reconnectAttempts < this._maxReconnectAttempts) {
         this._reconnectAttempts++;
         const delay = Math.min(2000 * this._reconnectAttempts, 10000);
+        this._log('Reconnecting in ' + delay + 'ms (attempt ' + this._reconnectAttempts + ')');
         clearTimeout(this.reconnectTimer);
         this.reconnectTimer = setTimeout(() => this.connect(), delay);
       } else {
-        if (this.term) {
-          this.term.write('\r\n\x1b[1;31m[Connection lost. Click terminal and press Enter to retry.]\x1b[0m\r\n');
-        }
+        this._status('[Connection lost after ' + this._maxReconnectAttempts + ' attempts]', 'red');
       }
     };
 
     this.ws.onerror = (err) => {
-      console.error('[Terminal] WebSocket error for session', this.sessionId, err);
+      this._log('WebSocket ERROR: ' + (err.message || 'unknown'));
     };
   }
 
@@ -197,5 +228,4 @@ class TerminalPane {
   }
 }
 
-// Export for use by app.js
 if (typeof window !== 'undefined') window.TerminalPane = TerminalPane;
