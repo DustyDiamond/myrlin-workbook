@@ -234,9 +234,21 @@ class Store extends EventEmitter {
   updateSession(id, updates) {
     const session = this._state.sessions[id];
     if (!session) return null;
+
+    // Handle workspace move — update both workspace session arrays
+    if (updates.workspaceId && updates.workspaceId !== session.workspaceId) {
+      const oldWs = this._state.workspaces[session.workspaceId];
+      const newWs = this._state.workspaces[updates.workspaceId];
+      if (!newWs) return null; // Target workspace doesn't exist
+      if (oldWs) {
+        oldWs.sessions = oldWs.sessions.filter(sid => sid !== id);
+      }
+      newWs.sessions.push(id);
+    }
+
     Object.assign(session, updates, { lastActive: new Date().toISOString() });
-    // Status changes save immediately, other updates debounce
-    if (updates.status || updates.pid !== undefined) {
+    // Status changes and workspace moves save immediately, other updates debounce
+    if (updates.status || updates.pid !== undefined || updates.workspaceId) {
       this.save();
     } else {
       this._debouncedSave();

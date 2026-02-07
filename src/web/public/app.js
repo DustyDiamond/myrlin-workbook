@@ -987,6 +987,48 @@ class CWMApp {
     this.renderSessions();
   }
 
+  async moveSessionToWorkspace(sessionId, targetWorkspaceId) {
+    const session = this.state.sessions.find(s => s.id === sessionId);
+    const targetWs = this.state.workspaces.find(w => w.id === targetWorkspaceId);
+    if (!session || !targetWs) return;
+
+    try {
+      await this.api('PUT', `/api/sessions/${sessionId}`, { workspaceId: targetWorkspaceId });
+      session.workspaceId = targetWorkspaceId;
+      this.renderWorkspaces();
+      this.renderSessions();
+      this.showToast(`Moved "${session.name}" to "${targetWs.name}"`, 'success');
+    } catch (err) {
+      this.showToast('Failed to move session: ' + (err.message || ''), 'error');
+    }
+  }
+
+  async removeSessionFromWorkspace(sessionId) {
+    const session = this.state.sessions.find(s => s.id === sessionId);
+    if (!session) return;
+
+    const confirmed = await this.showConfirmModal({
+      title: 'Remove Session',
+      message: `Remove "${session.name}" from this workspace? This deletes the session record (your Claude conversation files are not affected).`,
+      confirmText: 'Remove',
+      confirmClass: 'btn-danger',
+    });
+    if (!confirmed) return;
+
+    try {
+      await this.api('DELETE', `/api/sessions/${sessionId}`);
+      this.state.sessions = this.state.sessions.filter(s => s.id !== sessionId);
+      if (this.state.selectedSession && this.state.selectedSession.id === sessionId) {
+        this.deselectSession();
+      }
+      this.renderWorkspaces();
+      this.renderSessions();
+      this.showToast(`Removed "${session.name}"`, 'success');
+    } catch (err) {
+      this.showToast('Failed to remove session: ' + (err.message || ''), 'error');
+    }
+  }
+
   toggleShowHidden() {
     this.state.showHidden = !this.state.showHidden;
     if (this.els.toggleHiddenBtn) this.els.toggleHiddenBtn.classList.toggle('active', this.state.showHidden);
@@ -1123,12 +1165,31 @@ class CWMApp {
       }},
     );
 
+    // Move to another workspace
+    const otherWorkspaces = this.state.workspaces.filter(w => w.id !== session.workspaceId);
+    if (otherWorkspaces.length > 0) {
+      items.push({ type: 'sep' });
+      items.push({ label: 'Move to:', icon: '&#8594;', disabled: true });
+      otherWorkspaces.slice(0, 5).forEach(ws => {
+        items.push({
+          label: '  ' + (ws.name.length > 20 ? ws.name.substring(0, 20) + '...' : ws.name),
+          icon: '&#183;',
+          action: () => this.moveSessionToWorkspace(sessionId, ws.id),
+        });
+      });
+    }
+
+    items.push({ type: 'sep' });
+
     const isSessionHidden = this.state.hiddenSessions.has(sessionId);
     if (isSessionHidden) {
       items.push({ label: 'Unhide', icon: '&#128065;', action: () => this.unhideSession(sessionId) });
     } else {
       items.push({ label: 'Hide', icon: '&#128065;', action: () => this.deleteSession(sessionId) });
     }
+
+    // Remove from workspace (actually deletes the session record)
+    items.push({ label: 'Remove from Workspace', icon: '&#10005;', danger: true, action: () => this.removeSessionFromWorkspace(sessionId) });
 
     this._renderContextItems(session.name, items, x, y);
   }
@@ -2503,6 +2564,32 @@ class CWMApp {
       });
       el.addEventListener('dragend', () => {
         el.classList.remove('dragging');
+      });
+
+      // Accept session drops — move session to this workspace
+      el.addEventListener('dragover', (e) => {
+        // Only accept session drags, not workspace drags
+        if (e.dataTransfer.types.includes('cwm/session')) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          el.classList.add('workspace-drop-target');
+        }
+      });
+      el.addEventListener('dragleave', () => {
+        el.classList.remove('workspace-drop-target');
+      });
+      el.addEventListener('drop', (e) => {
+        el.classList.remove('workspace-drop-target');
+        const sessionId = e.dataTransfer.getData('cwm/session');
+        if (sessionId) {
+          e.preventDefault();
+          e.stopPropagation();
+          const targetWsId = el.dataset.id;
+          const session = this.state.sessions.find(s => s.id === sessionId);
+          if (session && session.workspaceId !== targetWsId) {
+            this.moveSessionToWorkspace(sessionId, targetWsId);
+          }
+        }
       });
     });
 
