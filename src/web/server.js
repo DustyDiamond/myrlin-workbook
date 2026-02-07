@@ -16,6 +16,7 @@ const express = require('express');
 const { setupAuth, requireAuth, isValidToken } = require('./auth');
 const { getStore } = require('../state/store');
 const { launchSession, stopSession, restartSession } = require('../core/session-manager');
+const { backupFrontend, restoreFrontend, getBackupStatus } = require('./backup');
 
 // ─── App Creation ──────────────────────────────────────────
 
@@ -50,6 +51,32 @@ app.use((req, res, next) => {
   const hasQueryToken = !!req.query.token;
   console.log(`[REQ] ${req.method} ${req.originalUrl} auth-header:${hasAuth} query-token:${hasQueryToken}`);
   next();
+});
+
+// ─── Health Check (no auth) ─────────────────────────────────
+
+const serverStartTime = Date.now();
+
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    uptime: Math.floor((Date.now() - serverStartTime) / 1000),
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// ─── Fallback/Backup Endpoints ──────────────────────────────
+
+app.get('/api/fallback/status', requireAuth, (req, res) => {
+  const status = getBackupStatus();
+  if (!status) return res.status(404).json({ error: 'No backup available' });
+  return res.json(status);
+});
+
+app.post('/api/fallback/restore', requireAuth, (req, res) => {
+  const manifest = restoreFrontend();
+  if (!manifest) return res.status(500).json({ error: 'Restore failed — no backup found' });
+  return res.json({ success: true, restored: manifest });
 });
 
 // ─── Auth Routes (public, no token required) ───────────────
@@ -731,12 +758,13 @@ function decodeClaudePath(encoded) {
  * from the first user message or conversation content.
  */
 app.post('/api/sessions/:id/auto-title', requireAuth, (req, res) => {
+  const store = getStore();
   const session = store.getSession(req.params.id);
-  if (!session) return res.status(404).json({ error: 'Session not found' });
 
-  const claudeSessionId = session.resumeSessionId;
+  // Support both store sessions and project sessions (direct Claude UUID)
+  const claudeSessionId = (session && session.resumeSessionId) || req.body.claudeSessionId || req.params.id;
   if (!claudeSessionId) {
-    return res.status(400).json({ error: 'Session has no Claude conversation to read' });
+    return res.status(400).json({ error: 'No Claude session ID available' });
   }
 
   // Find the .jsonl file in ~/.claude/projects/
@@ -774,34 +802,40 @@ app.post('/api/sessions/:id/auto-title', requireAuth, (req, res) => {
     let title = '';
 
     // Look for the first human/user message
+    // Claude JSONL format: { type: "user", message: { role: "user", content: "..." }, userType: "external" }
+    // Tool results also have type "user" but content is an array of tool_result objects — skip those
     for (const line of lines) {
       try {
         const msg = JSON.parse(line);
-        // Claude JSONL format: { role: 'user', content: ... } or { type: 'human', ... }
-        if (msg.role === 'user' || msg.type === 'human') {
-          let text = '';
-          if (typeof msg.content === 'string') {
-            text = msg.content;
-          } else if (Array.isArray(msg.content)) {
-            // Content blocks: [{ type: 'text', text: '...' }]
-            const textBlock = msg.content.find(b => b.type === 'text');
-            if (textBlock) text = textBlock.text;
-          } else if (msg.message && typeof msg.message === 'string') {
-            text = msg.message;
-          }
 
-          if (text) {
-            // Clean and truncate to make a title
-            title = text
-              .replace(/[\r\n]+/g, ' ')  // collapse newlines
-              .replace(/\s+/g, ' ')       // collapse whitespace
-              .trim();
-            // Truncate to ~60 chars at word boundary
-            if (title.length > 60) {
-              title = title.substring(0, 60).replace(/\s+\S*$/, '') + '...';
-            }
-            break;
+        // Nested format: { type: "user", message: { role: "user", content: ... } }
+        const inner = msg.message || msg;
+        const isUser = msg.type === 'user' || msg.type === 'human' || inner.role === 'user';
+        if (!isUser) continue;
+
+        // Extract text content from the inner message
+        const content = inner.content;
+        let text = '';
+
+        if (typeof content === 'string') {
+          text = content;
+        } else if (Array.isArray(content)) {
+          // Content blocks: [{ type: 'text', text: '...' }] — skip tool_result blocks
+          const textBlock = content.find(b => b.type === 'text' && b.text);
+          if (textBlock) text = textBlock.text;
+        }
+
+        if (text) {
+          // Clean and truncate to make a title
+          title = text
+            .replace(/[\r\n]+/g, ' ')  // collapse newlines
+            .replace(/\s+/g, ' ')       // collapse whitespace
+            .trim();
+          // Truncate to ~60 chars at word boundary
+          if (title.length > 60) {
+            title = title.substring(0, 60).replace(/\s+\S*$/, '') + '...';
           }
+          break;
         }
       } catch (_) { /* skip malformed lines */ }
     }
@@ -810,9 +844,11 @@ app.post('/api/sessions/:id/auto-title', requireAuth, (req, res) => {
       return res.status(404).json({ error: 'No user message found in session' });
     }
 
-    // Update the session name
-    store.updateSession(req.params.id, { name: title });
-    return res.json({ success: true, title });
+    // Update the session name if it's a store session
+    if (session) {
+      store.updateSession(req.params.id, { name: title });
+    }
+    return res.json({ success: true, title, claudeSessionId });
   } catch (err) {
     return res.status(500).json({ error: 'Failed to read session: ' + err.message });
   }
@@ -825,6 +861,7 @@ app.post('/api/sessions/:id/auto-title', requireAuth, (req, res) => {
  * Also works for project sessions by passing claudeSessionId in body.
  */
 app.post('/api/sessions/:id/summarize', requireAuth, (req, res) => {
+  const store = getStore();
   // For store sessions, use resumeSessionId. For project sessions, accept direct ID.
   const session = store.getSession(req.params.id);
   const claudeSessionId = (session && session.resumeSessionId) || req.body.claudeSessionId || req.params.id;
