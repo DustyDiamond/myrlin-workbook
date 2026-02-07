@@ -126,8 +126,9 @@ app.get('/api/workspaces', requireAuth, (req, res) => {
     ...ws,
     sessionCount: Array.isArray(ws.sessions) ? ws.sessions.length : 0,
   }));
+  const workspaceOrder = store._state.workspaceOrder || [];
 
-  return res.json({ workspaces });
+  return res.json({ workspaces, workspaceOrder });
 });
 
 /**
