@@ -836,6 +836,17 @@ textarea.input {
   box-shadow: inset 0 0 0 1px var(--blue);
 }
 
+/* Workspace reorder drop indicators */
+.workspace-item.ws-drop-before {
+  box-shadow: 0 -2px 0 0 var(--mauve);
+}
+.workspace-item.ws-drop-after {
+  box-shadow: 0 2px 0 0 var(--mauve);
+}
+.workspace-item.dragging {
+  opacity: 0.4;
+}
+
 .workspace-item.active::before {
   content: '';
   position: absolute;

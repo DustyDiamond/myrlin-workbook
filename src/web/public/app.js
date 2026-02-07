@@ -686,7 +686,19 @@ class CWMApp {
   async loadWorkspaces() {
     try {
       const data = await this.api('GET', '/api/workspaces');
-      this.state.workspaces = data.workspaces || [];
+      let workspaces = data.workspaces || [];
+      // Sort by server-side order if available
+      const order = data.workspaceOrder || [];
+      if (order.length > 0) {
+        const orderMap = {};
+        order.forEach((id, idx) => { orderMap[id] = idx; });
+        workspaces.sort((a, b) => {
+          const ai = orderMap[a.id] !== undefined ? orderMap[a.id] : 9999;
+          const bi = orderMap[b.id] !== undefined ? orderMap[b.id] : 9999;
+          return ai - bi;
+        });
+      }
+      this.state.workspaces = workspaces;
       // Auto-select first workspace if none active
       if (!this.state.activeWorkspace && this.state.workspaces.length > 0) {
         this.state.activeWorkspace = this.state.workspaces[0];
@@ -852,6 +864,40 @@ class CWMApp {
       await this.loadStats();
     } catch (err) {
       this.showToast(err.message || 'Failed to delete workspace', 'error');
+    }
+  }
+
+
+  /**
+   * Reorder a workspace in the sidebar by moving it before or after a target.
+   */
+  async reorderWorkspace(draggedId, targetId, position) {
+    const order = this.state.workspaces.map(w => w.id);
+    const fromIdx = order.indexOf(draggedId);
+    if (fromIdx === -1) return;
+
+    // Remove dragged item from current position
+    order.splice(fromIdx, 1);
+
+    // Find target position (after removal, indices may have shifted)
+    let toIdx = order.indexOf(targetId);
+    if (toIdx === -1) return;
+    if (position === 'after') toIdx++;
+
+    // Insert at new position
+    order.splice(toIdx, 0, draggedId);
+
+    // Reorder the local state array to match
+    const wsMap = {};
+    this.state.workspaces.forEach(w => { wsMap[w.id] = w; });
+    this.state.workspaces = order.map(id => wsMap[id]).filter(Boolean);
+    this.renderWorkspaces();
+
+    // Persist to server
+    try {
+      await this.api('PUT', '/api/workspaces/reorder', { order });
+    } catch (err) {
+      this.showToast('Failed to save order: ' + (err.message || ''), 'error');
     }
   }
 
@@ -2594,20 +2640,34 @@ class CWMApp {
         el.classList.remove('dragging');
       });
 
-      // Accept session drops — move session to this workspace
+      // Accept session drops (move session to workspace) and workspace drops (reorder)
       el.addEventListener('dragover', (e) => {
-        // Only accept session drags, not workspace drags
         if (e.dataTransfer.types.includes('cwm/session')) {
           e.preventDefault();
           e.dataTransfer.dropEffect = 'move';
           el.classList.add('workspace-drop-target');
+        } else if (e.dataTransfer.types.includes('cwm/workspace')) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          // Show drop indicator above or below based on mouse position
+          const rect = el.getBoundingClientRect();
+          const midY = rect.top + rect.height / 2;
+          el.classList.remove('ws-drop-before', 'ws-drop-after');
+          if (e.clientY < midY) {
+            el.classList.add('ws-drop-before');
+          } else {
+            el.classList.add('ws-drop-after');
+          }
         }
       });
       el.addEventListener('dragleave', () => {
-        el.classList.remove('workspace-drop-target');
+        el.classList.remove('workspace-drop-target', 'ws-drop-before', 'ws-drop-after');
       });
       el.addEventListener('drop', (e) => {
-        el.classList.remove('workspace-drop-target');
+        const dropBefore = el.classList.contains('ws-drop-before');
+        el.classList.remove('workspace-drop-target', 'ws-drop-before', 'ws-drop-after');
+
+        // Handle session drop — move session to this workspace
         const sessionId = e.dataTransfer.getData('cwm/session');
         if (sessionId) {
           e.preventDefault();
@@ -2617,6 +2677,15 @@ class CWMApp {
           if (session && session.workspaceId !== targetWsId) {
             this.moveSessionToWorkspace(sessionId, targetWsId);
           }
+          return;
+        }
+
+        // Handle workspace drop — reorder
+        const draggedWsId = e.dataTransfer.getData('cwm/workspace');
+        if (draggedWsId && draggedWsId !== el.dataset.id) {
+          e.preventDefault();
+          e.stopPropagation();
+          this.reorderWorkspace(draggedWsId, el.dataset.id, dropBefore ? 'before' : 'after');
         }
       });
     });
