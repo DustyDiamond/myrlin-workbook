@@ -1579,6 +1579,42 @@ textarea.input {
 
 
 /* ═══════════════════════════════════════════════════════════════
+   FALLBACK BANNER
+   ═══════════════════════════════════════════════════════════════ */
+
+.fallback-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10000;
+  padding: 8px 16px;
+  background: rgba(249, 226, 175, 0.12);
+  border-bottom: 1px solid var(--yellow);
+  color: var(--yellow);
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.fallback-dismiss {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--yellow);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.fallback-dismiss:hover {
+  background: rgba(249, 226, 175, 0.15);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
    ANIMATIONS
    ═══════════════════════════════════════════════════════════════ */
 

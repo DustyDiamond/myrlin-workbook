@@ -3,6 +3,92 @@
    Vanilla JS SPA with Catppuccin Mocha theme
    ═══════════════════════════════════════════════════════════════ */
 
+/* ─── Global Error Handler: Fallback Recovery ─────────────── */
+
+window.__cwmInitTimeout = setTimeout(() => {
+  // If CWMApp hasn't initialized within 5 seconds, something is very wrong
+  if (!window.cwm) window.dispatchEvent(new ErrorEvent('error', { message: 'CWMApp failed to initialize' }));
+}, 5000);
+
+window.addEventListener('error', function _cwmFallbackHandler(e) {
+  // Only act if CWMApp failed to construct (real crash, not minor runtime error)
+  if (window.cwm) return;
+
+  // Prevent multiple triggers
+  window.removeEventListener('error', _cwmFallbackHandler);
+  clearTimeout(window.__cwmInitTimeout);
+
+  // Check if server is healthy (problem is frontend, not backend)
+  fetch('/api/health').then(r => r.json()).then(data => {
+    if (data.status !== 'ok') return;
+
+    // Server is fine — show fallback recovery UI
+    document.body.innerHTML = `
+      <div style="
+        display:flex;flex-direction:column;align-items:center;justify-content:center;
+        min-height:100vh;background:#1e1e2e;color:#cdd6f4;font-family:system-ui,sans-serif;
+        padding:24px;text-align:center;
+      ">
+        <div style="max-width:420px;">
+          <div style="font-size:48px;margin-bottom:16px;">&#9888;</div>
+          <h2 style="margin:0 0 8px;font-size:20px;color:#f38ba8;">UI Failed to Load</h2>
+          <p style="margin:0 0 24px;font-size:14px;color:#a6adc8;">
+            The frontend encountered an error during initialization.
+            A previous working version may be available.
+          </p>
+          <p style="margin:0 0 24px;font-size:12px;color:#585b70;word-break:break-all;">
+            ${e.message || 'Unknown error'}
+          </p>
+          <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+            <button onclick="
+              fetch('/api/fallback/status').then(r=>{
+                if(!r.ok){alert('No backup available. The server may need manual repair.');return;}
+                return r.json();
+              }).then(s=>{
+                if(!s)return;
+                if(!confirm('Restore backup from '+new Date(s.timestamp).toLocaleString()+'?'))return;
+                const token=localStorage.getItem('cwm_token');
+                fetch('/api/fallback/restore',{
+                  method:'POST',
+                  headers:{'Content-Type':'application/json','Authorization':'Bearer '+token}
+                }).then(r=>r.json()).then(d=>{
+                  if(d.success){
+                    localStorage.setItem('cwm_fallback_active',s.timestamp);
+                    location.reload();
+                  }else{alert('Restore failed: '+(d.error||'unknown'));}
+                });
+              });
+            " style="
+              padding:12px 24px;background:#a6e3a1;color:#1e1e2e;border:none;border-radius:8px;
+              font-size:14px;font-weight:600;cursor:pointer;
+            ">Restore Previous Version</button>
+            <button onclick="location.reload()" style="
+              padding:12px 24px;background:#313244;color:#cdd6f4;border:1px solid #45475a;
+              border-radius:8px;font-size:14px;cursor:pointer;
+            ">Retry</button>
+          </div>
+        </div>
+      </div>`;
+  }).catch(() => {
+    // Server is also down — nothing we can do from the client
+    document.body.innerHTML = `
+      <div style="
+        display:flex;align-items:center;justify-content:center;
+        min-height:100vh;background:#1e1e2e;color:#cdd6f4;font-family:system-ui,sans-serif;
+        text-align:center;padding:24px;
+      ">
+        <div>
+          <h2 style="color:#f38ba8;">Server Unreachable</h2>
+          <p style="color:#a6adc8;">The CWM server is not responding. Check if it's running.</p>
+          <button onclick="location.reload()" style="
+            margin-top:16px;padding:12px 24px;background:#313244;color:#cdd6f4;
+            border:1px solid #45475a;border-radius:8px;font-size:14px;cursor:pointer;
+          ">Retry</button>
+        </div>
+      </div>`;
+  });
+});
+
 class CWMApp {
   constructor() {
     // ─── State ─────────────────────────────────────────────────
@@ -22,6 +108,7 @@ class CWMApp {
       docs: null,
       docsRawMode: false,
       hiddenSessions: new Set(JSON.parse(localStorage.getItem('cwm_hiddenSessions') || '[]')),
+      hiddenProjectSessions: new Set(JSON.parse(localStorage.getItem('cwm_hiddenProjectSessions') || '[]')),
       showHidden: false,
     };
 
@@ -43,6 +130,31 @@ class CWMApp {
     this.cacheElements();
     this.bindEvents();
     this.init();
+
+    // Clear the init timeout — we made it
+    clearTimeout(window.__cwmInitTimeout);
+
+    // Check if running a restored fallback version
+    this._checkFallbackBanner();
+  }
+
+  _checkFallbackBanner() {
+    const fallbackTs = localStorage.getItem('cwm_fallback_active');
+    if (!fallbackTs) return;
+
+    const banner = document.createElement('div');
+    banner.className = 'fallback-banner';
+    banner.innerHTML = `
+      <span style="margin-right:8px;">&#9888;</span>
+      Running fallback version (restored from ${new Date(fallbackTs).toLocaleString()}).
+      Some recent changes may be missing.
+      <button class="fallback-dismiss" title="Dismiss">&#10005;</button>
+    `;
+    banner.querySelector('.fallback-dismiss').addEventListener('click', () => {
+      localStorage.removeItem('cwm_fallback_active');
+      banner.remove();
+    });
+    document.body.prepend(banner);
   }
 
 
@@ -1051,6 +1163,11 @@ class CWMApp {
 
     items.push({ type: 'sep' });
 
+    // Auto Title (reads first user message and stores a friendly name)
+    items.push({
+      label: 'Auto Title', icon: '&#9733;', action: () => this.autoTitleProjectSession(sessionName),
+    });
+
     // Summarize session
     items.push({
       label: 'Summarize', icon: '&#128220;', action: () => this.summarizeSession(sessionName, sessionName),
@@ -1073,6 +1190,26 @@ class CWMApp {
         this.showToast('Path copied', 'success');
       },
     });
+
+    items.push({ type: 'sep' });
+
+    // Hide/unhide project session
+    const isHidden = this.state.hiddenProjectSessions.has(sessionName);
+    if (isHidden) {
+      items.push({ label: 'Unhide', icon: '&#128065;', action: () => {
+        this.state.hiddenProjectSessions.delete(sessionName);
+        localStorage.setItem('cwm_hiddenProjectSessions', JSON.stringify([...this.state.hiddenProjectSessions]));
+        this.renderProjects();
+        this.showToast('Session unhidden', 'info');
+      }});
+    } else {
+      items.push({ label: 'Hide', icon: '&#128065;', action: () => {
+        this.state.hiddenProjectSessions.add(sessionName);
+        localStorage.setItem('cwm_hiddenProjectSessions', JSON.stringify([...this.state.hiddenProjectSessions]));
+        this.renderProjects();
+        this.showToast('Session hidden', 'info');
+      }});
+    }
 
     const projectName = projectPath ? projectPath.split('\\').pop() || projectPath.split('/').pop() || sessionName : sessionName;
     this._renderContextItems(projectName, items, x, y);
@@ -1132,6 +1269,35 @@ class CWMApp {
     } catch (err) {
       this.showToast(err.message || 'Failed to auto-title', 'error');
     }
+  }
+
+  /**
+   * Auto-title a project session (not in store).
+   * Reads the first user message, stores the title in localStorage, and re-renders.
+   */
+  async autoTitleProjectSession(claudeSessionId) {
+    try {
+      this.showToast('Generating title...', 'info');
+      const data = await this.api('POST', `/api/sessions/${claudeSessionId}/auto-title`, { claudeSessionId });
+      if (data && data.title) {
+        // Store title mapping in localStorage
+        const titles = JSON.parse(localStorage.getItem('cwm_projectSessionTitles') || '{}');
+        titles[claudeSessionId] = data.title;
+        localStorage.setItem('cwm_projectSessionTitles', JSON.stringify(titles));
+        this.showToast(`Titled: "${data.title}"`, 'success');
+        this.renderProjects();
+      }
+    } catch (err) {
+      this.showToast(err.message || 'Failed to auto-title', 'error');
+    }
+  }
+
+  /**
+   * Get a stored project session title (from localStorage), or null.
+   */
+  getProjectSessionTitle(claudeSessionId) {
+    const titles = JSON.parse(localStorage.getItem('cwm_projectSessionTitles') || '{}');
+    return titles[claudeSessionId] || null;
   }
 
   /**
@@ -2631,15 +2797,19 @@ class CWMApp {
       const encoded = p.encodedName || '';
       const missingClass = !p.dirExists ? ' missing' : '';
       const sizeStr = p.totalSize ? this.formatSize(p.totalSize) : '';
-      const sessions = p.sessions || [];
+      const allSessions = p.sessions || [];
+      // Filter out hidden project sessions (unless showHidden is on)
+      const sessions = allSessions.filter(s => this.state.showHidden || !this.state.hiddenProjectSessions.has(s.name));
 
       // Build session sub-items
       const sessionItems = sessions.map(s => {
         const sessName = s.name || 'unnamed';
+        const storedTitle = this.getProjectSessionTitle(sessName);
+        const displayName = storedTitle || (sessName.length > 24 ? sessName.substring(0, 24) + '...' : sessName);
         const sessSize = s.size ? this.formatSize(s.size) : '';
         const sessTime = s.modified ? this.relativeTime(s.modified) : '';
         return `<div class="project-session-item" draggable="true" data-session-name="${this.escapeHtml(sessName)}" data-project-path="${this.escapeHtml(p.realPath || '')}" data-project-encoded="${this.escapeHtml(encoded)}">
-          <span class="project-session-name" title="${this.escapeHtml(sessName)}">${this.escapeHtml(sessName.length > 24 ? sessName.substring(0, 24) + '...' : sessName)}</span>
+          <span class="project-session-name" title="${this.escapeHtml(sessName)}">${this.escapeHtml(displayName)}</span>
           ${sessSize ? `<span class="project-session-size">${sessSize}</span>` : ''}
           ${sessTime ? `<span class="project-session-time">${sessTime}</span>` : ''}
         </div>`;

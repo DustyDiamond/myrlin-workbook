@@ -15,6 +15,7 @@
 
 const { getStore } = require('./state/store');
 const { startServer, getPtyManager } = require('./web/server');
+const { backupFrontend } = require('./web/backup');
 
 // ─── Initialize Store ──────────────────────────────────────
 
@@ -87,6 +88,9 @@ const server = startServer(port);
 
 console.log(`CWM GUI running at http://localhost:${port}`);
 console.log('Press Ctrl+C to stop.');
+
+// Snapshot frontend files as "last known good" on successful start
+backupFrontend();
 
 // ─── Open Browser (Windows) ────────────────────────────────
 

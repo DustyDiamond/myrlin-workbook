@@ -5,4 +5,5 @@ node_modules/
 .DS_Store
 Thumbs.db
 screenshots/
+src/web/public/.backup/
 nul
