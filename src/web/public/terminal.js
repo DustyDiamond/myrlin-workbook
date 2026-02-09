@@ -298,16 +298,16 @@ class TerminalPane {
 
   /**
    * Initialize mobile input mode — called after terminal mounts.
-   * Sets the terminal to scroll mode by default on mobile.
-   * Also installs a custom touch scroll handler since xterm.js's canvas
-   * intercepts all touch events and prevents native scroll on the viewport.
+   * Uses CSS pointer-events to prevent touch from focusing xterm's hidden
+   * textarea (which triggers the keyboard). Toolbar buttons send via WebSocket
+   * directly and don't need the textarea. The "Type" button toggles
+   * pointer-events to allow keyboard input when explicitly requested.
    */
   initMobileInputMode() {
     if (!this._isMobile() || !this.term) return;
 
     this._mobileTypeMode = false;
 
-    // Find xterm's hidden textarea
     const container = document.getElementById(this.containerId);
     if (!container) return;
     const textarea = container.querySelector('.xterm-helper-textarea');
@@ -315,21 +315,12 @@ class TerminalPane {
 
     this._xtermTextarea = textarea;
 
-    // Default to scroll mode: make textarea readonly so keyboard won't appear
-    textarea.setAttribute('readonly', 'readonly');
-    textarea.setAttribute('inputmode', 'none');
-
-    // When textarea loses focus (keyboard dismissed), revert to scroll mode
-    textarea.addEventListener('blur', () => {
-      if (this._mobileTypeMode) {
-        this.setMobileScrollMode();
-      }
-    });
+    // Default to scroll mode: block touch from reaching textarea via CSS.
+    // This prevents the keyboard from appearing when scrolling.
+    // Unlike readonly, this doesn't interfere with programmatic input.
+    textarea.style.pointerEvents = 'none';
 
     // ── Custom Touch Scroll Handler ──────────────────────────────
-    // xterm.js's .xterm-screen canvas sits on top of .xterm-viewport and
-    // intercepts all touch events, preventing native scroll. We capture
-    // touch events and programmatically scroll the terminal.
     this._initTouchScroll(container);
   }
 
@@ -438,10 +429,9 @@ class TerminalPane {
   setMobileTypeMode() {
     if (!this._xtermTextarea || !this.term) return;
     this._mobileTypeMode = true;
-    this._xtermTextarea.removeAttribute('readonly');
-    this._xtermTextarea.setAttribute('inputmode', 'text');
+    // Allow touch to reach textarea so keyboard can appear
+    this._xtermTextarea.style.pointerEvents = 'auto';
     this.term.focus();
-    // Notify listeners (toolbar button can update its state)
     if (this.onMobileModeChange) this.onMobileModeChange('type');
   }
 
@@ -451,10 +441,9 @@ class TerminalPane {
   setMobileScrollMode() {
     if (!this._xtermTextarea) return;
     this._mobileTypeMode = false;
-    this._xtermTextarea.setAttribute('readonly', 'readonly');
-    this._xtermTextarea.setAttribute('inputmode', 'none');
+    // Block touch from reaching textarea — prevents keyboard on scroll
+    this._xtermTextarea.style.pointerEvents = 'none';
     if (this.term) this.term.blur();
-    // Notify listeners
     if (this.onMobileModeChange) this.onMobileModeChange('scroll');
   }
 
