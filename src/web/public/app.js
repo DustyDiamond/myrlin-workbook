@@ -498,10 +498,11 @@ class CWMApp {
     }
 
     // ─── Mobile: Terminal Toolbar ──────────────────────────────
+    // Toolbar buttons send input directly via WebSocket — they work in
+    // both scroll and type mode, no textarea focus needed.
     document.querySelectorAll('.terminal-mobile-toolbar button').forEach(btn => {
       btn.addEventListener('click', () => {
         const key = btn.dataset.key;
-        // Use the tracked active terminal pane
         const activePane = this._activeTerminalSlot !== null
           ? this.terminalPanes[this._activeTerminalSlot]
           : this.terminalPanes.find(tp => tp !== null);
@@ -510,7 +511,6 @@ class CWMApp {
         // Keyboard toggle — switches between scroll mode and type mode
         if (key === 'keyboard') {
           const isTypeMode = activePane.toggleMobileInputMode();
-          // Update ALL keyboard buttons in all toolbars to reflect active pane state
           document.querySelectorAll('.toolbar-keyboard').forEach(kb => {
             kb.classList.toggle('toolbar-active', isTypeMode);
             kb.textContent = isTypeMode ? '\u2328 Typing' : '\u2328 Type';
@@ -518,6 +518,7 @@ class CWMApp {
           return;
         }
 
+        // All other buttons: send key via WebSocket directly
         if (!activePane.ws || activePane.ws.readyState !== WebSocket.OPEN) return;
 
         const keyMap = {
@@ -531,17 +532,7 @@ class CWMApp {
         };
         const data = keyMap[key];
         if (data) {
-          // If in scroll mode, auto-switch to type mode when sending keys
-          if (activePane._isMobile && activePane._isMobile() && !activePane._mobileTypeMode) {
-            activePane.setMobileTypeMode();
-            document.querySelectorAll('.toolbar-keyboard').forEach(kb => {
-              kb.classList.add('toolbar-active');
-              kb.textContent = '\u2328 Typing';
-            });
-          }
           activePane.ws.send(JSON.stringify({ type: 'input', data }));
-          // Refocus terminal for continued typing
-          if (activePane.term) activePane.term.focus();
         }
       });
     });
