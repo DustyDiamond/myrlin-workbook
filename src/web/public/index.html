@@ -532,6 +532,49 @@
             </div>
           </div>
 
+          <!-- Docs / Board Tab Bar -->
+          <div class="docs-tabs">
+            <button class="docs-tab active" data-tab="docs">Docs</button>
+            <button class="docs-tab" data-tab="board">Board</button>
+          </div>
+
+          <!-- Feature Board (Kanban) -->
+          <div class="feature-board" id="feature-board" hidden>
+            <div class="board-toolbar">
+              <button class="btn btn-sm btn-ghost" id="board-add-btn">+ Feature</button>
+            </div>
+            <div class="board-columns" id="board-columns">
+              <div class="board-column" data-status="planned">
+                <div class="board-column-header">
+                  <span class="board-column-title">Planned</span>
+                  <span class="board-column-count" data-count="planned">0</span>
+                </div>
+                <div class="board-column-body" data-status="planned"></div>
+              </div>
+              <div class="board-column" data-status="active">
+                <div class="board-column-header">
+                  <span class="board-column-title">Active</span>
+                  <span class="board-column-count" data-count="active">0</span>
+                </div>
+                <div class="board-column-body" data-status="active"></div>
+              </div>
+              <div class="board-column" data-status="review">
+                <div class="board-column-header">
+                  <span class="board-column-title">Review</span>
+                  <span class="board-column-count" data-count="review">0</span>
+                </div>
+                <div class="board-column-body" data-status="review"></div>
+              </div>
+              <div class="board-column" data-status="done">
+                <div class="board-column-header">
+                  <span class="board-column-title">Done</span>
+                  <span class="board-column-count" data-count="done">0</span>
+                </div>
+                <div class="board-column-body" data-status="done"></div>
+              </div>
+            </div>
+          </div>
+
           <!-- Structured View -->
           <div class="docs-structured" id="docs-structured">
             <div class="docs-section" data-section="notes">

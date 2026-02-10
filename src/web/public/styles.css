@@ -2191,12 +2191,13 @@ textarea.input {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
+  padding: 8px 14px;
   background: var(--mantle);
   border: 1px solid var(--surface0);
   border-radius: var(--radius-sm);
   color: var(--subtext0);
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
   flex-shrink: 0;
@@ -2206,6 +2207,7 @@ textarea.input {
 .terminal-tab.active {
   background: var(--surface0);
   color: var(--text);
+  font-weight: 600;
   border-color: var(--mauve);
 }
 
@@ -3175,6 +3177,171 @@ textarea.input {
   border-color: var(--mauve);
 }
 
+/* ─── Feature Board (Kanban) ────────────────────────────── */
+
+.docs-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--surface0);
+  flex-shrink: 0;
+}
+
+.docs-tab {
+  background: none;
+  border: none;
+  color: var(--subtext0);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s;
+}
+
+.docs-tab:hover {
+  color: var(--text);
+}
+
+.docs-tab.active {
+  color: var(--mauve);
+  border-bottom-color: var(--mauve);
+}
+
+.feature-board {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.board-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--surface0);
+}
+
+.board-columns {
+  display: flex;
+  gap: 8px;
+  padding: 12px;
+  overflow-x: auto;
+  flex: 1;
+}
+
+.board-column {
+  flex: 1;
+  min-width: 180px;
+  max-width: 280px;
+  display: flex;
+  flex-direction: column;
+  background: var(--mantle);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.board-column-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--surface0);
+}
+
+.board-column-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--subtext0);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.board-column-count {
+  font-size: 10px;
+  font-family: 'JetBrains Mono', 'Cascadia Code', monospace;
+  color: var(--overlay0);
+  background: var(--surface0);
+  padding: 1px 6px;
+  border-radius: 8px;
+}
+
+.board-column-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px;
+  min-height: 80px;
+}
+
+.board-card {
+  background: var(--base);
+  border: 1px solid var(--surface0);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  cursor: grab;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.board-card:hover {
+  border-color: var(--surface2);
+  box-shadow: var(--shadow-sm);
+}
+
+.board-card.dragging {
+  opacity: 0.5;
+}
+
+.board-card-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.board-card-desc {
+  font-size: 11px;
+  color: var(--subtext0);
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.board-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.board-card-priority {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-weight: 500;
+}
+
+.board-card-priority-urgent { background: rgba(210, 15, 57, 0.15); color: var(--red); }
+.board-card-priority-high { background: rgba(254, 100, 11, 0.15); color: var(--peach); }
+.board-card-priority-normal { background: rgba(30, 102, 245, 0.15); color: var(--blue); }
+.board-card-priority-low { background: rgba(172, 176, 190, 0.15); color: var(--overlay0); }
+
+.board-card-sessions {
+  font-size: 10px;
+  color: var(--subtext0);
+  font-family: 'JetBrains Mono', 'Cascadia Code', monospace;
+}
+
+/* Drop target highlight */
+.board-column-body.drag-over {
+  background: rgba(203, 166, 247, 0.05);
+  border-radius: 4px;
+}
+
 /* ═══════════════════════════════════════════════════════════════
    TERMINAL GRID
    ═══════════════════════════════════════════════════════════════ */
@@ -3198,12 +3365,12 @@ textarea.input {
 }
 .terminal-pane-header {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 4px 10px; background: var(--mantle);
+  padding: 6px 12px; background: var(--mantle);
   border-bottom: 1px solid var(--surface0);
-  font-size: 12px; color: var(--subtext0);
+  font-size: 13px; color: var(--subtext0);
   flex-shrink: 0;
 }
-.terminal-pane-title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.terminal-pane-title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; color: var(--text); }
 .terminal-pane:not(.terminal-pane-empty) .terminal-pane-title {
   cursor: text;
 }
