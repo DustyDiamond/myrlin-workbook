@@ -336,6 +336,18 @@ class CWMApp {
       detailSubagents: document.getElementById('detail-subagents'),
       detailSubagentCount: document.getElementById('detail-subagent-count'),
       detailSubagentList: document.getElementById('detail-subagent-list'),
+
+      // Update
+      updateBtn: document.getElementById('update-btn'),
+      updateBadge: document.getElementById('update-badge'),
+      updateOverlay: document.getElementById('update-overlay'),
+      updateBody: document.getElementById('update-body'),
+      updateStatus: document.getElementById('update-status'),
+      updateSteps: document.getElementById('update-steps'),
+      updateStartBtn: document.getElementById('update-start-btn'),
+      updateDismissBtn: document.getElementById('update-dismiss-btn'),
+      updateCloseBtn: document.getElementById('update-close-btn'),
+      updateFooter: document.getElementById('update-footer'),
     };
   }
 
@@ -541,6 +553,20 @@ class CWMApp {
       this.els.boardAddBtn.addEventListener('click', () => this.createFeature());
     }
 
+    // Update button
+    if (this.els.updateBtn) {
+      this.els.updateBtn.addEventListener('click', () => this.showUpdateModal());
+    }
+    if (this.els.updateStartBtn) {
+      this.els.updateStartBtn.addEventListener('click', () => this.performUpdate());
+    }
+    if (this.els.updateDismissBtn) {
+      this.els.updateDismissBtn.addEventListener('click', () => this.hideUpdateModal());
+    }
+    if (this.els.updateCloseBtn) {
+      this.els.updateCloseBtn.addEventListener('click', () => this.hideUpdateModal());
+    }
+
     // Global keyboard shortcuts
     document.addEventListener('keydown', (e) => {
       // Ctrl+K / Cmd+K — Quick Switcher
@@ -704,6 +730,7 @@ class CWMApp {
         await this.loadAll();
         this.connectSSE();
         this.startConflictChecks();
+        this.checkForUpdates();
       } else {
         this.state.token = null;
         localStorage.removeItem('cwm_token');
@@ -789,6 +816,7 @@ class CWMApp {
         await this.loadAll();
         this.connectSSE();
         this.startConflictChecks();
+        this.checkForUpdates();
       } else {
         this.els.loginError.textContent = 'Invalid password. Please try again.';
       }
@@ -5004,6 +5032,19 @@ class CWMApp {
 
     const items = [];
 
+    // Copy selected text (only show when there's a selection)
+    if (tp.term && tp.term.hasSelection()) {
+      items.push({
+        label: 'Copy', icon: '&#128203;', action: () => {
+          const selected = tp.term.getSelection();
+          if (selected) {
+            navigator.clipboard.writeText(selected);
+            this.showToast('Copied to clipboard', 'success');
+          }
+        },
+      });
+    }
+
     // Paste from clipboard
     items.push({
       label: 'Paste', icon: '&#128203;', action: () => {
@@ -6895,6 +6936,141 @@ class CWMApp {
       this.showToast('Feature session started: ' + result.featureName, 'success');
     } catch (err) {
       this.showToast(err.message || 'Failed to create feature session', 'error');
+    }
+  }
+
+
+  /* ═══════════════════════════════════════════════════════════
+     SELF-UPDATE
+     ═══════════════════════════════════════════════════════════ */
+
+  async checkForUpdates() {
+    try {
+      const data = await this.api('GET', '/api/version');
+      this._versionInfo = data;
+
+      if (data.updateAvailable && this.els.updateBtn) {
+        this.els.updateBtn.hidden = false;
+        this.els.updateBadge.hidden = false;
+        this.els.updateBadge.textContent = data.commitsBehind;
+      }
+    } catch (_) {
+      // Version check is best-effort
+    }
+  }
+
+  showUpdateModal() {
+    if (!this.els.updateOverlay) return;
+    this.els.updateOverlay.hidden = false;
+
+    const info = this._versionInfo || {};
+
+    if (info.updateAvailable) {
+      this.els.updateStatus.innerHTML = `
+        <div>Current version: <span class="update-version">v${this.escapeHtml(info.version)}</span></div>
+        <div style="margin-top:4px;color:var(--green)">${info.commitsBehind} commit${info.commitsBehind > 1 ? 's' : ''} behind</div>
+      `;
+      this.els.updateStartBtn.hidden = false;
+    } else {
+      this.els.updateStatus.innerHTML = `
+        <div>Current version: <span class="update-version">v${this.escapeHtml(info.version || '?')}</span></div>
+        <div style="margin-top:4px;color:var(--green)">You're up to date!</div>
+      `;
+      this.els.updateStartBtn.hidden = true;
+    }
+
+    this.els.updateSteps.innerHTML = '';
+  }
+
+  hideUpdateModal() {
+    if (this.els.updateOverlay) this.els.updateOverlay.hidden = true;
+  }
+
+  async performUpdate() {
+    this.els.updateStartBtn.hidden = true;
+    this.els.updateDismissBtn.hidden = true;
+    this.els.updateSteps.innerHTML = '';
+
+    const steps = {
+      pull: { label: 'Pulling latest changes', icon: '&#8595;' },
+      install: { label: 'Installing dependencies', icon: '&#128230;' },
+      version: { label: 'Checking new version', icon: '&#9989;' },
+      restart: { label: 'Restarting server', icon: '&#128260;' },
+    };
+
+    // Initialize all steps as pending
+    Object.entries(steps).forEach(([key, step]) => {
+      const div = document.createElement('div');
+      div.className = 'update-step update-step-pending';
+      div.id = `update-step-${key}`;
+      div.innerHTML = `
+        <span class="update-step-icon">${step.icon}</span>
+        <span class="update-step-label">${step.label}</span>
+        <span class="update-step-detail"></span>
+      `;
+      this.els.updateSteps.appendChild(div);
+    });
+
+    try {
+      const response = await fetch('/api/update', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + this.state.token,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop(); // Keep incomplete line in buffer
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const msg = JSON.parse(line);
+            this.updateStepUI(msg.step, msg.status, msg.detail);
+          } catch (_) {}
+        }
+      }
+
+      // After stream ends, show restart message
+      this.els.updateStatus.innerHTML = '<div style="color:var(--green);font-weight:600">Update complete! Refresh the page in a few seconds.</div>';
+      this.els.updateFooter.innerHTML = '<button class="btn btn-primary" onclick="location.reload()">Refresh Now</button>';
+
+    } catch (err) {
+      this.els.updateStatus.innerHTML = `<div style="color:var(--red)">Update failed: ${this.escapeHtml(err.message)}</div>`;
+      this.els.updateDismissBtn.hidden = false;
+    }
+  }
+
+  updateStepUI(stepKey, status, detail) {
+    const el = document.getElementById(`update-step-${stepKey}`);
+    if (!el) return;
+
+    el.className = `update-step update-step-${status}`;
+
+    const iconEl = el.querySelector('.update-step-icon');
+    const detailEl = el.querySelector('.update-step-detail');
+
+    if (status === 'running') {
+      iconEl.innerHTML = ''; // CSS spinner via ::after
+    } else if (status === 'done') {
+      iconEl.innerHTML = '&#10003;';
+    } else if (status === 'error') {
+      iconEl.innerHTML = '&#10007;';
+    }
+
+    if (detail && detailEl) {
+      detailEl.textContent = detail;
+      detailEl.title = detail;
     }
   }
 

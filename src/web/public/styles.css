@@ -4487,3 +4487,97 @@ html {
 :root[data-theme="macchiato"] .terminal-resize-handle:hover {
   background: rgba(198, 160, 246, 0.4);
 }
+
+/* ─── Update Button & Modal ─────────────────────────────── */
+
+.update-btn {
+  position: relative;
+}
+
+.update-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 8px;
+  height: 8px;
+  background: var(--green);
+  border-radius: 50%;
+  border: 2px solid var(--base);
+}
+
+.update-modal {
+  max-width: 480px;
+}
+
+.update-status {
+  padding: 12px 0;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.update-version {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  color: var(--mauve);
+}
+
+.update-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 0;
+}
+
+.update-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--mantle);
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.update-step-icon {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
+.update-step-pending .update-step-icon { color: var(--surface2); }
+.update-step-running .update-step-icon { color: var(--blue); }
+.update-step-done .update-step-icon { color: var(--green); }
+.update-step-error .update-step-icon { color: var(--red); }
+
+.update-step-label {
+  flex: 1;
+  color: var(--text);
+}
+
+.update-step-detail {
+  font-size: 11px;
+  color: var(--subtext0);
+  font-family: 'JetBrains Mono', monospace;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.update-step-running .update-step-icon::after {
+  content: '';
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--blue);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
