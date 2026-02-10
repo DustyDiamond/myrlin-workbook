@@ -118,10 +118,12 @@ class PtySessionManager {
       // Non-critical — session can work without docs integration
     }
 
-    console.log(`[PTY] Spawning: cmd.exe /k ${fullCommand} (cwd: ${resolvedCwd})`);
+    console.log(`[PTY] Spawning: cmd.exe /c ${fullCommand} (cwd: ${resolvedCwd})`);
 
     // Spawn PTY process via cmd.exe on Windows
-    const ptyProcess = pty.spawn('cmd.exe', ['/k', fullCommand], {
+    // Use /c so cmd.exe exits when Claude exits (Ctrl+C, completion, crash)
+    // This prevents stale cmd prompts when re-opening sessions
+    const ptyProcess = pty.spawn('cmd.exe', ['/c', fullCommand], {
       name: 'xterm-256color',
       cols,
       rows,

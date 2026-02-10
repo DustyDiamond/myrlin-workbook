@@ -253,6 +253,7 @@ class CWMApp {
 
       // Projects
       projectsList: document.getElementById('projects-list'),
+      projectsRefresh: document.getElementById('projects-refresh'),
       projectsToggle: document.getElementById('projects-toggle'),
       projectsSearchInput: document.getElementById('projects-search-input'),
 
@@ -352,6 +353,15 @@ class CWMApp {
     this.els.viewTabs.forEach(tab => {
       tab.addEventListener('click', () => this.setViewMode(tab.dataset.mode));
     });
+
+    // Projects refresh
+    if (this.els.projectsRefresh) {
+      this.els.projectsRefresh.addEventListener('click', () => {
+        sessionStorage.removeItem('cwm_projects'); // Clear cache
+        this.loadProjects();
+        this.showToast('Refreshing projects...', 'info');
+      });
+    }
 
     // Projects toggle
     if (this.els.projectsToggle) {
@@ -1099,6 +1109,38 @@ class CWMApp {
       this.showToast(`Session "${session.name || 'New'}" created`, 'success');
       await this.loadSessions();
       await this.loadStats();
+    } catch (err) {
+      this.showToast(err.message || 'Failed to create session', 'error');
+    }
+  }
+
+  /**
+   * Quick-create a new session in a specific directory and open it in a terminal pane.
+   * Used by right-click on project directory headers in workspace sidebar.
+   */
+  async createSessionInDir(workspaceId, dir, flags = {}) {
+    const dirParts = dir.replace(/\\/g, '/').split('/');
+    const name = dirParts[dirParts.length - 1] || 'new-session';
+    try {
+      const payload = {
+        name: `${name} - new`,
+        workspaceId,
+        workingDir: dir,
+        command: 'claude',
+      };
+      if (flags.bypassPermissions) payload.bypassPermissions = true;
+      const data = await this.api('POST', '/api/sessions', payload);
+      const session = data.session || data;
+      this.showToast(`Session created in ${name}`, 'success');
+      await this.loadSessions();
+      // Auto-open in first empty terminal pane
+      const emptySlot = this.terminalPanes.findIndex(p => p === null);
+      if (emptySlot !== -1) {
+        this.setViewMode('terminal');
+        const spawnOpts = { cwd: dir };
+        if (flags.bypassPermissions) spawnOpts.bypassPermissions = true;
+        this.openTerminalInPane(emptySlot, session.id, session.name, spawnOpts);
+      }
     } catch (err) {
       this.showToast(err.message || 'Failed to create session', 'error');
     }
@@ -2900,25 +2942,40 @@ class CWMApp {
         sessionsByDir[dir].push(s);
       });
 
+      // Build a lookup map for session sizes from projects data
+      const sessionSizeMap = {};
+      (this.state.projects || []).forEach(p => {
+        (p.sessions || []).forEach(ps => {
+          if (ps.size) sessionSizeMap[ps.name] = ps.size;
+        });
+      });
+
       const renderSessionItem = (s) => {
         const isHidden = this.state.hiddenSessions.has(s.id);
         const statusDot = s.status === 'running' ? 'var(--green)' : 'var(--overlay0)';
         const name = s.name || s.id.substring(0, 12);
         const timeStr = s.lastActive ? this.relativeTime(s.lastActive) : '';
+        // Look up JSONL file size via resumeSessionId
+        const sizeBytes = s.resumeSessionId ? sessionSizeMap[s.resumeSessionId] : null;
+        const sizeStr = sizeBytes ? this.formatSize(sizeBytes) : '';
         return `<div class="ws-session-item${isHidden ? ' ws-session-hidden' : ''}" data-session-id="${s.id}" draggable="true" title="${this.escapeHtml(s.workingDir || '')}">
           <span class="ws-session-dot" style="background: ${statusDot}"></span>
           <span class="ws-session-name">${this.escapeHtml(name.length > 22 ? name.substring(0, 22) + '...' : name)}</span>
+          ${sizeStr ? `<span class="ws-session-size">${sizeStr}</span>` : ''}
           ${timeStr ? `<span class="ws-session-time">${timeStr}</span>` : ''}
         </div>`;
       };
 
       const dirKeys = Object.keys(sessionsByDir);
       let sessionItems;
-      if (dirKeys.length <= 1) {
-        // Single directory or no sessions — flat list (no nesting needed)
+      if (dirKeys.length === 0) {
+        sessionItems = '';
+      } else if (dirKeys.length === 1 && dirKeys[0] === '(no directory)') {
+        // Only sessions without a directory — flat list
         sessionItems = wsSessions.map(renderSessionItem).join('');
       } else {
-        // Multiple directories — group into nested accordions
+        // Always show project directory headers (even for single directory)
+        // This enables right-click → new session on the directory
         sessionItems = dirKeys.map(dir => {
           const dirSessions = sessionsByDir[dir];
           const groupKey = ws.id + ':' + dir;
@@ -2927,7 +2984,7 @@ class CWMApp {
           const parts = dir.replace(/\\/g, '/').split('/');
           const shortDir = parts.slice(-2).join('/');
           return `<div class="ws-project-group" data-group-key="${this.escapeHtml(groupKey)}">
-            <div class="ws-project-group-header" title="${this.escapeHtml(dir)}">
+            <div class="ws-project-group-header" data-dir="${this.escapeHtml(dir)}" data-ws-id="${ws.id}" title="${this.escapeHtml(dir)}">
               <span class="ws-project-group-chevron${isCollapsed ? ' collapsed' : ''}">&#9654;</span>
               <span class="ws-project-group-path">${this.escapeHtml(shortDir)}</span>
               <span class="ws-project-group-count">${dirSessions.length}</span>
@@ -3126,6 +3183,21 @@ class CWMApp {
         const state = JSON.parse(localStorage.getItem('cwm_projectGroupState') || '{}');
         state[key] = !isCollapsed;
         localStorage.setItem('cwm_projectGroupState', JSON.stringify(state));
+      });
+
+      // Right-click on project directory → context menu with "New Session"
+      hdr.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const dir = hdr.dataset.dir;
+        const wsId = hdr.dataset.wsId;
+        if (!dir || !wsId) return;
+        const parts = dir.replace(/\\/g, '/').split('/');
+        const shortDir = parts.slice(-2).join('/');
+        this._renderContextItems(shortDir, [
+          { label: 'New Session Here', icon: '&#9654;', action: () => this.createSessionInDir(wsId, dir) },
+          { label: 'New Session (Bypass)', icon: '&#9888;', action: () => this.createSessionInDir(wsId, dir, { bypassPermissions: true }) },
+        ], e.clientX, e.clientY);
       });
     });
 

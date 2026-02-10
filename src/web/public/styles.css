@@ -1001,6 +1001,14 @@ textarea.input {
   font-size: 11px;
 }
 
+.ws-session-size {
+  font-size: 10px;
+  color: var(--subtext0);
+  white-space: nowrap;
+  margin-left: auto;
+  padding: 0 4px;
+}
+
 .ws-session-time {
   font-size: 10px;
   color: var(--overlay0);
