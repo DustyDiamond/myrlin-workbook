@@ -403,6 +403,42 @@ textarea.input {
   color: var(--yellow);
 }
 
+/* ─── Session List Inline Badges ───────────────────────────── */
+
+.session-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 500;
+  font-family: 'JetBrains Mono', monospace;
+  line-height: 1.3;
+  margin-left: 4px;
+  flex-shrink: 0;
+}
+
+.session-badge-port {
+  background: rgba(137, 180, 250, 0.15);
+  color: var(--blue);
+}
+
+.session-badge-warn {
+  background: rgba(249, 226, 175, 0.15);
+  color: var(--yellow);
+}
+
+.session-badge-model {
+  background: rgba(203, 166, 247, 0.15);
+  color: var(--mauve);
+}
+
+.session-badge-cost {
+  background: rgba(166, 227, 161, 0.1);
+  color: var(--green);
+  font-family: 'JetBrains Mono', monospace;
+}
+
 
 /* ═══════════════════════════════════════════════════════════════
    LOGIN SCREEN
