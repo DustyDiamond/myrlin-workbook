@@ -71,6 +71,8 @@ function attachPtyWebSocket(httpServer) {
       if (query.command) spawnOpts.command = query.command;
       if (query.resumeSessionId) spawnOpts.resumeSessionId = query.resumeSessionId;
       if (query.bypassPermissions === 'true') spawnOpts.bypassPermissions = true;
+      if (query.verbose === 'true') spawnOpts.verbose = true;
+      if (query.model) spawnOpts.model = query.model;
 
       // Attach the client to the PTY session
       ptyManager.attachClient(sessionId, ws, spawnOpts);

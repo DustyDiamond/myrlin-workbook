@@ -215,6 +215,9 @@ class TerminalPane {
     if (this.spawnOpts.cwd) wsUrl += '&cwd=' + encodeURIComponent(this.spawnOpts.cwd);
     if (this.spawnOpts.resumeSessionId) wsUrl += '&resumeSessionId=' + encodeURIComponent(this.spawnOpts.resumeSessionId);
     if (this.spawnOpts.command) wsUrl += '&command=' + encodeURIComponent(this.spawnOpts.command);
+    if (this.spawnOpts.bypassPermissions) wsUrl += '&bypassPermissions=true';
+    if (this.spawnOpts.verbose) wsUrl += '&verbose=true';
+    if (this.spawnOpts.model) wsUrl += '&model=' + encodeURIComponent(this.spawnOpts.model);
     this._log('Opening WebSocket: ' + wsUrl.substring(0, 80) + '...');
 
     try {

@@ -3888,11 +3888,22 @@ class CWMApp {
           const sessionId = e.dataTransfer.getData('cwm/session');
           if (sessionId) {
             console.log('[DnD] Session drop:', sessionId);
-            const session = this.state.sessions.find(s => s.id === sessionId);
+            const session = this.state.sessions.find(s => s.id === sessionId)
+              || (this.state.allSessions && this.state.allSessions.find(s => s.id === sessionId));
             if (session && !session.resumeSessionId) {
               this.showToast('Starting new Claude session (no previous conversation to resume)', 'info');
             }
-            this.openTerminalInPane(slotIdx, sessionId, session ? session.name : 'Terminal');
+            // Build spawnOpts from session flags so bypass/model/verbose carry through
+            const spawnOpts = {};
+            if (session) {
+              if (session.resumeSessionId) spawnOpts.resumeSessionId = session.resumeSessionId;
+              if (session.workingDir) spawnOpts.cwd = session.workingDir;
+              if (session.command) spawnOpts.command = session.command;
+              if (session.bypassPermissions) spawnOpts.bypassPermissions = true;
+              if (session.verbose) spawnOpts.verbose = true;
+              if (session.model) spawnOpts.model = session.model;
+            }
+            this.openTerminalInPane(slotIdx, sessionId, session ? session.name : 'Terminal', spawnOpts);
             return;
           }
 
