@@ -2939,6 +2939,114 @@ app.delete('/api/git/worktrees', requireAuth, async (req, res) => {
 });
 
 // ──────────────────────────────────────────────────────────
+//  SELF-UPDATE
+// ──────────────────────────────────────────────────────────
+
+app.get('/api/version', requireAuth, async (req, res) => {
+  try {
+    const pkg = require('../../package.json');
+    const currentVersion = pkg.version;
+
+    // Check git for updates
+    const appDir = path.resolve(__dirname, '..', '..');
+    let updateAvailable = false;
+    let remoteVersion = currentVersion;
+    let commitsBehind = 0;
+
+    try {
+      // Fetch latest from remote
+      execSync('git fetch origin main --quiet', { cwd: appDir, timeout: 10000, stdio: ['pipe', 'pipe', 'pipe'] });
+
+      // Check how many commits behind
+      const behindOutput = execSync('git rev-list HEAD..origin/main --count', { cwd: appDir, timeout: 5000, encoding: 'utf-8' }).trim();
+      commitsBehind = parseInt(behindOutput, 10) || 0;
+      updateAvailable = commitsBehind > 0;
+
+      // Get the latest commit message from remote
+      if (updateAvailable) {
+        const latestMsg = execSync('git log origin/main -1 --format=%s', { cwd: appDir, timeout: 5000, encoding: 'utf-8' }).trim();
+        remoteVersion = `${currentVersion}+${commitsBehind}`;
+      }
+    } catch (_) {
+      // Git operations may fail if not a git repo or no network
+    }
+
+    res.json({
+      version: currentVersion,
+      updateAvailable,
+      commitsBehind,
+      remoteVersion,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to check version: ' + err.message });
+  }
+});
+
+app.post('/api/update', requireAuth, async (req, res) => {
+  const appDir = path.resolve(__dirname, '..', '..');
+
+  // Use chunked transfer to stream progress
+  res.setHeader('Content-Type', 'application/x-ndjson');
+  res.setHeader('Transfer-Encoding', 'chunked');
+  res.setHeader('Cache-Control', 'no-cache');
+
+  const sendStep = (step, status, detail) => {
+    res.write(JSON.stringify({ step, status, detail, timestamp: Date.now() }) + '\n');
+  };
+
+  try {
+    // Step 1: Git pull
+    sendStep('pull', 'running', 'Pulling latest changes from origin/main...');
+    try {
+      const pullOutput = execSync('git pull origin main', { cwd: appDir, timeout: 30000, encoding: 'utf-8' });
+      sendStep('pull', 'done', pullOutput.trim().substring(0, 200));
+    } catch (err) {
+      sendStep('pull', 'error', (err.stderr || err.message || '').substring(0, 200));
+      res.end();
+      return;
+    }
+
+    // Step 2: npm install (in case dependencies changed)
+    sendStep('install', 'running', 'Installing dependencies...');
+    try {
+      const installOutput = execSync('npm install --production', { cwd: appDir, timeout: 120000, encoding: 'utf-8' });
+      // Count packages
+      const match = installOutput.match(/added (\d+)/);
+      const detail = match ? `Installed ${match[1]} new packages` : 'Dependencies up to date';
+      sendStep('install', 'done', detail);
+    } catch (err) {
+      sendStep('install', 'error', (err.stderr || err.message || '').substring(0, 200));
+      res.end();
+      return;
+    }
+
+    // Step 3: Read new version
+    sendStep('version', 'running', 'Checking new version...');
+    try {
+      // Clear require cache to get fresh package.json
+      delete require.cache[require.resolve('../../package.json')];
+      const newPkg = require('../../package.json');
+      sendStep('version', 'done', `Updated to v${newPkg.version}`);
+    } catch (_) {
+      sendStep('version', 'done', 'Version check skipped');
+    }
+
+    // Step 4: Signal restart
+    sendStep('restart', 'running', 'Restarting server in 2 seconds...');
+    res.end();
+
+    // Graceful restart after response is sent
+    setTimeout(() => {
+      process.exit(0); // Process manager (pm2/systemd) or user will restart
+    }, 2000);
+
+  } catch (err) {
+    sendStep('error', 'error', err.message);
+    res.end();
+  }
+});
+
+// ──────────────────────────────────────────────────────────
 //  TUNNEL MANAGEMENT (Cloudflare Quick Tunnels)
 // ──────────────────────────────────────────────────────────
 
