@@ -1514,6 +1514,7 @@ class CWMApp {
       }},
       { label: 'Start with Context', icon: '&#128218;', action: () => this.startSessionWithContext(sessionId) },
       { label: 'Save as Template', icon: '&#128190;', action: () => this.saveSessionAsTemplate(session) },
+      { label: 'Export Context', icon: '&#128230;', action: () => this.exportSessionContext(sessionId) },
     );
 
     // If the session has a working directory, add git worktree option
@@ -3210,9 +3211,35 @@ class CWMApp {
         // Look up JSONL file size via resumeSessionId
         const sizeBytes = s.resumeSessionId ? sessionSizeMap[s.resumeSessionId] : null;
         const sizeStr = sizeBytes ? this.formatSize(sizeBytes) : '';
+
+        // Build inline badges for extra session metadata
+        let badges = '';
+        // Port badge — show first discovered port
+        if (s.ports && s.ports.length > 0) {
+          badges += `<span class="session-badge session-badge-port">:${s.ports[0]}</span>`;
+        }
+        // Bypass permissions warning badge
+        if (s.bypassPermissions) {
+          badges += `<span class="session-badge session-badge-warn">bypass</span>`;
+        }
+        // Non-default model badge (show short label)
+        if (s.model) {
+          const modelShort = s.model.includes('opus') ? 'opus'
+            : s.model.includes('sonnet') ? 'sonnet'
+            : s.model.includes('haiku') ? 'haiku'
+            : s.model.split('-').pop();
+          badges += `<span class="session-badge session-badge-model">${this.escapeHtml(modelShort)}</span>`;
+        }
+        // Cost badge (best-effort from cache)
+        const cachedCost = this._getSessionCostCached(s.id);
+        if (cachedCost !== null && cachedCost !== undefined) {
+          badges += `<span class="session-badge session-badge-cost">$${Number(cachedCost).toFixed(2)}</span>`;
+        }
+
         return `<div class="ws-session-item${isHidden ? ' ws-session-hidden' : ''}" data-session-id="${s.id}" draggable="true" title="${this.escapeHtml(s.workingDir || '')}">
           <span class="ws-session-dot" style="background: ${statusDot}"></span>
           <span class="ws-session-name">${this.escapeHtml(name.length > 22 ? name.substring(0, 22) + '...' : name)}</span>
+          ${badges}
           ${sizeStr ? `<span class="ws-session-size">${sizeStr}</span>` : ''}
           ${timeStr ? `<span class="ws-session-time">${timeStr}</span>` : ''}
         </div>`;
@@ -3316,6 +3343,14 @@ class CWMApp {
     });
 
     list.innerHTML = html;
+
+    // Fire off async cost fetches for visible sessions (best-effort, non-blocking)
+    const visibleSessionIds = (this.state.allSessions || this.state.sessions)
+      .filter(s => s.status === 'running' || s.status === 'idle')
+      .map(s => s.id);
+    if (visibleSessionIds.length > 0) {
+      this._fetchSessionCostsAsync(visibleSessionIds);
+    }
 
     // Bind workspace item events
     list.querySelectorAll('.workspace-item').forEach(el => {
@@ -6749,6 +6784,126 @@ class CWMApp {
     setTimeout(() => this.checkForConflicts(), 5000);
     // Then check every 60 seconds
     this._conflictCheckInterval = setInterval(() => this.checkForConflicts(), 60000);
+  }
+
+  /* ─── Export Session Context (Handoff) ──────────────────────── */
+
+  async exportSessionContext(sessionId) {
+    try {
+      const data = await this.api('GET', `/api/sessions/${sessionId}/export-context`);
+      if (!data || !data.export) {
+        this.showToast('No context data available', 'warning');
+        return;
+      }
+
+      const markdown = data.export.markdown;
+      const fileCount = (data.export.filesTouched || []).length;
+      const msgCount = data.export.messageCount || 0;
+
+      // Show in a modal with copy + continue options
+      const result = await this.showPromptModal({
+        title: 'Session Context Export',
+        fields: [
+          { key: 'context', label: `${msgCount} messages \u00b7 ${fileCount} files`, type: 'textarea', value: markdown },
+        ],
+        confirmText: 'Copy & Continue',
+        confirmClass: 'btn-primary',
+      });
+
+      if (result) {
+        // Copy to clipboard
+        try {
+          await navigator.clipboard.writeText(markdown);
+          this.showToast('Context copied to clipboard', 'success');
+        } catch (_) {
+          this.showToast('Could not copy to clipboard', 'warning');
+        }
+
+        // Continue in new session — create a new session in the same workspace/dir and open in terminal
+        const session = (this.state.allSessions || this.state.sessions).find(s => s.id === sessionId);
+        if (session && session.workspaceId) {
+          try {
+            const dirParts = (session.workingDir || '').replace(/\\/g, '/').split('/');
+            const dirName = dirParts[dirParts.length - 1] || 'handoff';
+            const payload = {
+              name: `${dirName} - continued`,
+              workspaceId: session.workspaceId,
+              workingDir: session.workingDir || '',
+              command: 'claude',
+              topic: `Continued from: ${session.name || session.id}`,
+            };
+            if (session.model) payload.model = session.model;
+            if (session.bypassPermissions) payload.bypassPermissions = true;
+
+            const newData = await this.api('POST', '/api/sessions', payload);
+            const newSession = newData.session || newData;
+            await this.loadSessions();
+
+            // Open in first empty terminal pane and send context as first message
+            const emptySlot = this.terminalPanes.findIndex(p => p === null);
+            if (emptySlot !== -1) {
+              this.setViewMode('terminal');
+              const spawnOpts = { cwd: session.workingDir || '' };
+              if (session.model) spawnOpts.model = session.model;
+              if (session.bypassPermissions) spawnOpts.bypassPermissions = true;
+              this.openTerminalInPane(emptySlot, newSession.id, newSession.name, spawnOpts);
+
+              // After a short delay, send the context markdown as the first message
+              setTimeout(() => {
+                const pane = this.terminalPanes[emptySlot];
+                if (pane && pane.sendInput) {
+                  pane.sendInput(markdown + '\n');
+                }
+              }, 2000);
+            }
+          } catch (contErr) {
+            // Copy succeeded even if continue fails
+            this.showToast('Context copied but could not create new session: ' + (contErr.message || ''), 'warning');
+          }
+        }
+      }
+    } catch (err) {
+      this.showToast(err.message || 'Failed to export context', 'error');
+    }
+  }
+
+  /* ─── Session Cost Cache (best-effort, non-blocking) ──────── */
+
+  _getSessionCostCached(sessionId) {
+    if (!this._costCache) this._costCache = {};
+    const entry = this._costCache[sessionId];
+    if (entry && (Date.now() - entry.ts < 300000)) {
+      // Valid cache entry (< 5 minutes old)
+      return entry.cost;
+    }
+    return null;
+  }
+
+  _fetchSessionCostsAsync(sessionIds) {
+    if (!this._costCache) this._costCache = {};
+    if (!this._costFetchInFlight) this._costFetchInFlight = new Set();
+
+    sessionIds.forEach(sid => {
+      // Don't re-fetch if already in flight or recently cached
+      if (this._costFetchInFlight.has(sid)) return;
+      const entry = this._costCache[sid];
+      if (entry && (Date.now() - entry.ts < 300000)) return;
+
+      this._costFetchInFlight.add(sid);
+      this.api('GET', `/api/sessions/${sid}/cost`).then(data => {
+        this._costFetchInFlight.delete(sid);
+        if (data && (data.totalCost !== undefined || data.cost !== undefined)) {
+          const cost = data.totalCost ?? data.cost ?? null;
+          this._costCache[sid] = { cost, ts: Date.now() };
+          // Trigger a soft re-render of workspaces to show updated cost badges
+          this.renderWorkspaces();
+        }
+      }).catch(() => {
+        this._costFetchInFlight.delete(sid);
+        // Cache a null so we don't keep retrying for 5 minutes
+        this._costCache[sid] = { cost: null, ts: Date.now() };
+      });
+    });
   }
 
   async checkForConflicts() {

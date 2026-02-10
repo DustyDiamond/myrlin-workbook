@@ -1689,6 +1689,299 @@ app.get('/api/workspaces/:id/cost', requireAuth, (req, res) => {
 });
 
 // ──────────────────────────────────────────────────────────
+//  SESSION CONTEXT EXPORT / HANDOFF
+// ──────────────────────────────────────────────────────────
+
+/**
+ * Extract text content from a JSONL message entry.
+ * Returns { role, text } or null if the entry is not a user/assistant message.
+ * Shared helper used by the export-context endpoint.
+ */
+function extractExportMessageText(line) {
+  try {
+    const msg = JSON.parse(line);
+    const inner = msg.message || msg;
+    const role = msg.type || inner.role;
+    const isUser = role === 'user' || role === 'human';
+    const isAssistant = role === 'assistant';
+    if (!isUser && !isAssistant) return null;
+
+    const c = inner.content;
+    let text = '';
+    if (typeof c === 'string') {
+      text = c;
+    } else if (Array.isArray(c)) {
+      const textBlocks = c.filter(b => b.type === 'text' && b.text);
+      text = textBlocks.map(b => b.text).join(' ');
+    }
+    // Skip system-generated messages and very short messages
+    if (!text || text.length < 5) return null;
+    if (text.startsWith('<') && text.includes('system-reminder')) return null;
+
+    return {
+      role: isUser ? 'user' : 'assistant',
+      text: text.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim(),
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
+/**
+ * Extract file paths from text content using common patterns.
+ * Looks for paths like src/foo.js, ./bar.ts, /path/to/file.py, etc.
+ * Returns a deduplicated sorted array of file path strings.
+ */
+function extractFilePaths(text) {
+  const pathSet = new Set();
+
+  // Match paths with common source file extensions
+  // Patterns: src/foo.js, ./bar/baz.ts, path/to/file.py, C:\Users\...\file.js, etc.
+  const extensionPattern = /(?:[\w./-]+\/)?[\w.-]+\.(?:js|jsx|ts|tsx|py|rb|go|rs|java|c|cpp|h|hpp|cs|php|swift|kt|scala|sh|bash|zsh|ps1|psm1|json|yaml|yml|toml|xml|html|css|scss|sass|less|sql|md|mdx|vue|svelte|astro|prisma|graphql|gql|proto|tf|hcl)\b/gi;
+
+  // Match explicit relative or absolute paths (./foo, ../bar, /src/baz, src/qux)
+  const pathPattern = /(?:\.{1,2}\/|\bsrc\/|\blib\/|\btest\/|\btests\/|\bapp\/|\bpages\/|\bcomponents\/|\butils\/|\bcore\/|\bweb\/|\bapi\/|\bconfig\/|\bdist\/|\bbuild\/)[\w./-]+/gi;
+
+  const extensionMatches = text.match(extensionPattern) || [];
+  const pathMatches = text.match(pathPattern) || [];
+
+  for (const match of [...extensionMatches, ...pathMatches]) {
+    // Clean up the match: remove trailing punctuation, quotes, parens
+    let cleaned = match.replace(/[,;:'")\]}>]+$/, '').replace(/^['"(\[{<]+/, '');
+    // Skip very short or obviously not-a-path strings
+    if (cleaned.length < 4) continue;
+    // Skip things that look like URLs
+    if (cleaned.includes('://')) continue;
+    // Normalize backslashes to forward slashes for consistency
+    cleaned = cleaned.replace(/\\/g, '/');
+    pathSet.add(cleaned);
+  }
+
+  return Array.from(pathSet).sort();
+}
+
+/**
+ * GET /api/sessions/:id/export-context
+ * Generates a structured context export for session handoff.
+ * When a Claude session runs out of context, this endpoint produces a
+ * markdown summary with the original request, work done, files touched,
+ * and token usage — ready to paste into a new session.
+ * Protected by auth.
+ */
+app.get('/api/sessions/:id/export-context', requireAuth, (req, res) => {
+  const store = getStore();
+  const session = store.getSession(req.params.id);
+
+  // Support both store sessions and direct Claude UUID
+  const claudeSessionId = (session && session.resumeSessionId) || req.params.id;
+  const sessionName = (session && session.name) || claudeSessionId || 'Unknown Session';
+
+  if (!claudeSessionId) {
+    return res.status(400).json({ error: 'No Claude session ID available' });
+  }
+
+  // Find the JSONL file using the shared helper
+  const jsonlPath = findJsonlFile(claudeSessionId);
+
+  if (!jsonlPath) {
+    // No JSONL file found — return basic info from store session data
+    return res.json({
+      sessionId: req.params.id,
+      sessionName,
+      export: {
+        markdown: `# Session Context: ${sessionName}\n\n_No conversation data found. The JSONL file for this session could not be located._`,
+        filesTouched: [],
+        messageCount: 0,
+        tokenSummary: { input: 0, output: 0, cost: 0 },
+      },
+    });
+  }
+
+  try {
+    const stat = fs.statSync(jsonlPath);
+    const fileSize = stat.size;
+
+    // ── Read head (first 5 user messages) and tail (last 5 assistant messages) ──
+    // Strategy: read first 50KB for early messages, last 100KB for recent messages
+    const headSize = Math.min(50 * 1024, fileSize);
+    const tailSize = Math.min(100 * 1024, fileSize);
+    const tailOffset = Math.max(0, fileSize - tailSize);
+
+    const fd = fs.openSync(jsonlPath, 'r');
+
+    const headBuf = Buffer.alloc(headSize);
+    fs.readSync(fd, headBuf, 0, headSize, 0);
+
+    const tailBuf = Buffer.alloc(tailSize);
+    fs.readSync(fd, tailBuf, 0, tailSize, tailOffset);
+
+    fs.closeSync(fd);
+
+    // Parse head messages — collect first 5 user messages
+    const headContent = headBuf.toString('utf-8');
+    const headLines = headContent.split('\n').filter(l => l.trim());
+    const firstUserMessages = [];
+    for (const line of headLines) {
+      if (firstUserMessages.length >= 5) break;
+      const parsed = extractExportMessageText(line);
+      if (parsed && parsed.role === 'user') {
+        firstUserMessages.push(parsed.text);
+      }
+    }
+
+    // Parse tail messages — collect last 5 assistant messages
+    const tailContent = tailBuf.toString('utf-8');
+    const tailLines = tailContent.split('\n').filter(l => l.trim());
+    // Drop partial first line if we started mid-file
+    if (tailOffset > 0 && tailLines.length > 0) tailLines.shift();
+
+    const lastAssistantMessages = [];
+    for (let i = tailLines.length - 1; i >= 0; i--) {
+      if (lastAssistantMessages.length >= 5) break;
+      const parsed = extractExportMessageText(tailLines[i]);
+      if (parsed && parsed.role === 'assistant') {
+        lastAssistantMessages.unshift(parsed.text);
+      }
+    }
+
+    // ── Count total messages by reading full file line-by-line ──
+    // Use the cost calculation helper which already reads the full file
+    // and gives us token usage, cost, and message count
+    let costData;
+    try {
+      costData = calculateSessionCost(jsonlPath);
+    } catch (_) {
+      costData = {
+        tokens: { input: 0, output: 0, total: 0 },
+        cost: { total: 0 },
+        messageCount: 0,
+      };
+    }
+
+    // ── Count all user+assistant messages for the total message count ──
+    // costData.messageCount only counts assistant messages with usage data,
+    // so we'll also count from head+tail for a more complete picture
+    const allParsedLines = [];
+    // Read the full file for accurate message count and file path extraction
+    let fullContent;
+    try {
+      fullContent = fs.readFileSync(jsonlPath, 'utf-8');
+    } catch (_) {
+      fullContent = headContent + '\n' + tailContent;
+    }
+    const fullLines = fullContent.split('\n').filter(l => l.trim());
+    let totalMessageCount = 0;
+    const allTextForPaths = [];
+
+    for (const line of fullLines) {
+      const parsed = extractExportMessageText(line);
+      if (parsed) {
+        totalMessageCount++;
+        // Collect text for file path extraction (limit per message to avoid huge strings)
+        allTextForPaths.push(parsed.text.substring(0, 2000));
+      }
+    }
+
+    // ── Extract file paths from all message content ──
+    const combinedText = allTextForPaths.join('\n');
+    const filesTouched = extractFilePaths(combinedText);
+
+    // ── Build the token summary ──
+    const tokenSummary = {
+      input: costData.tokens.input,
+      output: costData.tokens.output,
+      cost: Math.round(costData.cost.total * 100) / 100,
+    };
+
+    // ── Build the markdown export ──
+    const mdParts = [];
+    mdParts.push(`# Session Context: ${sessionName}`);
+    mdParts.push('');
+
+    // Original Request — first user message in full
+    mdParts.push('## Original Request');
+    if (firstUserMessages.length > 0) {
+      mdParts.push(firstUserMessages[0]);
+    } else {
+      mdParts.push('_No user messages found._');
+    }
+    mdParts.push('');
+
+    // Additional early context (if more than 1 user message in the head)
+    if (firstUserMessages.length > 1) {
+      mdParts.push('## Early Follow-ups');
+      for (let i = 1; i < firstUserMessages.length; i++) {
+        const truncated = firstUserMessages[i].length > 500
+          ? firstUserMessages[i].substring(0, 500).replace(/\s+\S*$/, '') + '...'
+          : firstUserMessages[i];
+        mdParts.push(`- ${truncated}`);
+      }
+      mdParts.push('');
+    }
+
+    // Work Done — last 3 assistant messages, truncated to 500 chars each
+    mdParts.push('## Work Done');
+    if (lastAssistantMessages.length > 0) {
+      const workMessages = lastAssistantMessages.slice(-3);
+      for (const msg of workMessages) {
+        const truncated = msg.length > 500
+          ? msg.substring(0, 500).replace(/\s+\S*$/, '') + '...'
+          : msg;
+        mdParts.push(`- ${truncated}`);
+      }
+    } else {
+      mdParts.push('_No assistant messages found._');
+    }
+    mdParts.push('');
+
+    // Files Touched
+    mdParts.push('## Files Touched');
+    if (filesTouched.length > 0) {
+      for (const fp of filesTouched) {
+        mdParts.push(`- ${fp}`);
+      }
+    } else {
+      mdParts.push('_No file paths detected in conversation._');
+    }
+    mdParts.push('');
+
+    // Token Usage
+    mdParts.push('## Token Usage');
+    mdParts.push(`- Input: ${tokenSummary.input.toLocaleString()}`);
+    mdParts.push(`- Output: ${tokenSummary.output.toLocaleString()}`);
+    mdParts.push(`- Estimated cost: $${tokenSummary.cost.toFixed(2)}`);
+    mdParts.push('');
+
+    // Last State — last assistant message content, truncated to 2000 chars
+    mdParts.push('## Last State');
+    if (lastAssistantMessages.length > 0) {
+      const lastMsg = lastAssistantMessages[lastAssistantMessages.length - 1];
+      const truncatedLast = lastMsg.length > 2000
+        ? lastMsg.substring(0, 2000).replace(/\s+\S*$/, '') + '...'
+        : lastMsg;
+      mdParts.push(truncatedLast);
+    } else {
+      mdParts.push('_No assistant messages found._');
+    }
+
+    const markdown = mdParts.join('\n');
+
+    return res.json({
+      sessionId: req.params.id,
+      sessionName,
+      export: {
+        markdown,
+        filesTouched,
+        messageCount: totalMessageCount,
+        tokenSummary,
+      },
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to export session context: ' + err.message });
+  }
+});
+
+// ──────────────────────────────────────────────────────────
 //  SESSION TEMPLATES
 // ──────────────────────────────────────────────────────────
 
