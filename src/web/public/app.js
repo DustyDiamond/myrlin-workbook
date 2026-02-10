@@ -310,6 +310,11 @@ class CWMApp {
       docsAiInsights: document.getElementById('docs-ai-insights'),
       docsAiRefresh: document.getElementById('docs-ai-refresh'),
 
+      // Feature Board
+      featureBoard: document.getElementById('feature-board'),
+      boardColumns: document.getElementById('board-columns'),
+      boardAddBtn: document.getElementById('board-add-btn'),
+
       // Terminal Tab Groups
       terminalGroupsBar: document.getElementById('terminal-groups-bar'),
       terminalGroupsTabs: document.getElementById('terminal-groups-tabs'),
@@ -513,6 +518,28 @@ class CWMApp {
         if (chevron) chevron.classList.toggle('open');
       });
     });
+
+    // Docs/Board tab switching
+    document.querySelectorAll('.docs-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.docs-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        const view = tab.dataset.tab;
+        // Toggle docs structured/raw views vs board
+        if (this.els.docsStructured) this.els.docsStructured.hidden = (view === 'board');
+        if (this.els.docsRaw) this.els.docsRaw.hidden = true; // always hide raw when switching tabs
+        if (this.els.featureBoard) this.els.featureBoard.hidden = (view !== 'board');
+        // Hide docs-specific header buttons when on board view
+        if (this.els.docsToggleRaw) this.els.docsToggleRaw.hidden = (view === 'board');
+        if (this.els.docsSaveBtn) this.els.docsSaveBtn.hidden = true;
+        if (view === 'board') this.loadFeatureBoard();
+      });
+    });
+
+    // Board add button
+    if (this.els.boardAddBtn) {
+      this.els.boardAddBtn.addEventListener('click', () => this.createFeature());
+    }
 
     // Global keyboard shortcuts
     document.addEventListener('keydown', (e) => {
@@ -7175,6 +7202,266 @@ class CWMApp {
     } catch {
       // Silently ignore conflict check failures — the API endpoint may not exist yet.
       // This is a non-critical background check.
+    }
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     FEATURE TRACKING BOARD
+     ═══════════════════════════════════════════════════════════ */
+
+  async loadFeatureBoard() {
+    const ws = this.state.activeWorkspace;
+    if (!ws) return;
+
+    try {
+      const data = await this.api('GET', `/api/workspaces/${ws.id}/features`);
+      this._features = data.features || [];
+      this.renderFeatureBoard();
+    } catch (err) {
+      this.showToast(err.message || 'Failed to load features', 'error');
+    }
+  }
+
+  renderFeatureBoard() {
+    const features = this._features || [];
+    const statuses = ['planned', 'active', 'review', 'done'];
+
+    statuses.forEach(status => {
+      const columnBody = document.querySelector(`.board-column-body[data-status="${status}"]`);
+      const countEl = document.querySelector(`.board-column-count[data-count="${status}"]`);
+      if (!columnBody) return;
+
+      const statusFeatures = features.filter(f => f.status === status);
+      if (countEl) countEl.textContent = statusFeatures.length;
+
+      columnBody.innerHTML = statusFeatures.map(f => {
+        const priorityClass = f.priority ? `board-card-priority-${f.priority}` : 'board-card-priority-normal';
+        const sessionCount = (f.sessionIds || []).length;
+        const desc = f.description ? `<div class="board-card-desc">${this.escapeHtml(f.description)}</div>` : '';
+
+        return `<div class="board-card" draggable="true" data-feature-id="${f.id}">
+          <div class="board-card-name">${this.escapeHtml(f.name)}</div>
+          ${desc}
+          <div class="board-card-meta">
+            <span class="board-card-priority ${priorityClass}">${f.priority || 'normal'}</span>
+            ${sessionCount > 0 ? `<span class="board-card-sessions">${sessionCount} session${sessionCount > 1 ? 's' : ''}</span>` : ''}
+          </div>
+        </div>`;
+      }).join('') || '<div style="padding:12px;text-align:center;color:var(--surface2);font-size:11px">No features</div>';
+
+      // Drag-and-drop handlers for column
+      columnBody.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        columnBody.classList.add('drag-over');
+      });
+      columnBody.addEventListener('dragleave', () => {
+        columnBody.classList.remove('drag-over');
+      });
+      columnBody.addEventListener('drop', (e) => {
+        e.preventDefault();
+        columnBody.classList.remove('drag-over');
+        const featureId = e.dataTransfer.getData('cwm/feature-id');
+        if (featureId) this.moveFeature(featureId, status);
+      });
+    });
+
+    // Card drag handlers
+    document.querySelectorAll('.board-card').forEach(card => {
+      card.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('cwm/feature-id', card.dataset.featureId);
+        card.classList.add('dragging');
+      });
+      card.addEventListener('dragend', () => {
+        card.classList.remove('dragging');
+      });
+      // Right-click for feature context menu
+      card.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        this.showFeatureContextMenu(card.dataset.featureId, e.clientX, e.clientY);
+      });
+    });
+  }
+
+  async moveFeature(featureId, newStatus) {
+    try {
+      await this.api('PUT', `/api/features/${featureId}`, { status: newStatus });
+      await this.loadFeatureBoard();
+    } catch (err) {
+      this.showToast(err.message || 'Failed to move feature', 'error');
+    }
+  }
+
+  async createFeature() {
+    const ws = this.state.activeWorkspace;
+    if (!ws) return;
+
+    const result = await this.showPromptModal({
+      title: 'New Feature',
+      fields: [
+        { key: 'name', label: 'Feature Name', placeholder: 'User authentication', required: true },
+        { key: 'description', label: 'Description', type: 'textarea', placeholder: 'Details about the feature...' },
+        { key: 'priority', label: 'Priority', type: 'select', options: [
+          { value: 'low', label: 'Low' },
+          { value: 'normal', label: 'Normal' },
+          { value: 'high', label: 'High' },
+          { value: 'urgent', label: 'Urgent' },
+        ]},
+        { key: 'status', label: 'Status', type: 'select', options: [
+          { value: 'planned', label: 'Planned' },
+          { value: 'active', label: 'Active' },
+          { value: 'review', label: 'Review' },
+          { value: 'done', label: 'Done' },
+        ]},
+      ],
+      confirmText: 'Create Feature',
+    });
+
+    if (!result) return;
+
+    try {
+      await this.api('POST', `/api/workspaces/${ws.id}/features`, {
+        name: result.name,
+        description: result.description || '',
+        priority: result.priority || 'normal',
+        status: result.status || 'planned',
+      });
+      await this.loadFeatureBoard();
+      this.showToast('Feature created', 'success');
+    } catch (err) {
+      this.showToast(err.message || 'Failed to create feature', 'error');
+    }
+  }
+
+  showFeatureContextMenu(featureId, x, y) {
+    const feature = (this._features || []).find(f => f.id === featureId);
+    if (!feature) return;
+
+    const ws = this.state.activeWorkspace;
+    const wsSessions = (this.state.allSessions || this.state.sessions).filter(s => s.workspaceId === ws?.id);
+
+    const items = [
+      { label: 'Edit', icon: '&#9998;', action: () => this.editFeature(featureId) },
+      { type: 'sep' },
+      { label: 'Move to Planned', icon: '&#128203;', action: () => this.moveFeature(featureId, 'planned'), disabled: feature.status === 'planned' },
+      { label: 'Move to Active', icon: '&#9889;', action: () => this.moveFeature(featureId, 'active'), disabled: feature.status === 'active' },
+      { label: 'Move to Review', icon: '&#128269;', action: () => this.moveFeature(featureId, 'review'), disabled: feature.status === 'review' },
+      { label: 'Move to Done', icon: '&#10004;', action: () => this.moveFeature(featureId, 'done'), disabled: feature.status === 'done' },
+      { type: 'sep' },
+    ];
+
+    // Link session option
+    if (wsSessions.length > 0) {
+      items.push({ label: 'Link Session...', icon: '&#128279;', action: () => this.linkSessionToFeature(featureId, wsSessions) });
+    }
+
+    // Show linked sessions
+    if (feature.sessionIds && feature.sessionIds.length > 0) {
+      items.push({ type: 'sep' });
+      feature.sessionIds.forEach(sid => {
+        const sess = wsSessions.find(s => s.id === sid);
+        if (sess) {
+          items.push({ label: `Unlink: ${sess.name}`, icon: '&#10005;', action: () => this.unlinkSessionFromFeature(featureId, sid) });
+        }
+      });
+    }
+
+    items.push({ type: 'sep' });
+    items.push({ label: 'Delete Feature', icon: '&#10005;', action: () => this.deleteFeature(featureId), danger: true });
+
+    this._renderContextItems(feature.name, items, x, y);
+  }
+
+  async editFeature(featureId) {
+    const feature = (this._features || []).find(f => f.id === featureId);
+    if (!feature) return;
+
+    const result = await this.showPromptModal({
+      title: 'Edit Feature',
+      fields: [
+        { key: 'name', label: 'Feature Name', value: feature.name, required: true },
+        { key: 'description', label: 'Description', type: 'textarea', value: feature.description || '' },
+        { key: 'priority', label: 'Priority', type: 'select', value: feature.priority, options: [
+          { value: 'low', label: 'Low' },
+          { value: 'normal', label: 'Normal' },
+          { value: 'high', label: 'High' },
+          { value: 'urgent', label: 'Urgent' },
+        ]},
+      ],
+      confirmText: 'Save Changes',
+    });
+
+    if (!result) return;
+
+    try {
+      await this.api('PUT', `/api/features/${featureId}`, {
+        name: result.name,
+        description: result.description || '',
+        priority: result.priority || feature.priority,
+      });
+      await this.loadFeatureBoard();
+      this.showToast('Feature updated', 'success');
+    } catch (err) {
+      this.showToast(err.message || 'Failed to update feature', 'error');
+    }
+  }
+
+  async linkSessionToFeature(featureId, wsSessions) {
+    // Filter out already-linked sessions
+    const feature = (this._features || []).find(f => f.id === featureId);
+    if (!feature) return;
+    const linkedIds = new Set(feature.sessionIds || []);
+    const available = wsSessions.filter(s => !linkedIds.has(s.id));
+
+    if (available.length === 0) {
+      this.showToast('All sessions already linked', 'info');
+      return;
+    }
+
+    const options = available.map(s => ({ value: s.id, label: s.name }));
+    const result = await this.showPromptModal({
+      title: 'Link Session to Feature',
+      fields: [
+        { key: 'sessionId', label: 'Session', type: 'select', options, required: true },
+      ],
+      confirmText: 'Link',
+    });
+
+    if (result && result.sessionId) {
+      try {
+        await this.api('POST', `/api/features/${featureId}/sessions/${result.sessionId}`);
+        await this.loadFeatureBoard();
+        this.showToast('Session linked', 'success');
+      } catch (err) {
+        this.showToast(err.message || 'Failed to link session', 'error');
+      }
+    }
+  }
+
+  async unlinkSessionFromFeature(featureId, sessionId) {
+    try {
+      await this.api('DELETE', `/api/features/${featureId}/sessions/${sessionId}`);
+      await this.loadFeatureBoard();
+      this.showToast('Session unlinked', 'success');
+    } catch (err) {
+      this.showToast(err.message || 'Failed to unlink session', 'error');
+    }
+  }
+
+  async deleteFeature(featureId) {
+    const confirmed = await this.showConfirmModal({
+      title: 'Delete Feature',
+      message: 'This feature will be permanently deleted. Continue?',
+      confirmText: 'Delete',
+    });
+
+    if (!confirmed) return;
+
+    try {
+      await this.api('DELETE', `/api/features/${featureId}`);
+      await this.loadFeatureBoard();
+      this.showToast('Feature deleted', 'success');
+    } catch (err) {
+      this.showToast(err.message || 'Failed to delete feature', 'error');
     }
   }
 }

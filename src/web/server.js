@@ -2302,6 +2302,92 @@ app.post('/api/sessions/:id/summarize', requireAuth, (req, res) => {
 });
 
 // ──────────────────────────────────────────────────────────
+//  FEATURE TRACKING BOARD
+// ──────────────────────────────────────────────────────────
+
+/**
+ * GET /api/workspaces/:id/features
+ * Returns all features for a workspace.
+ */
+app.get('/api/workspaces/:id/features', requireAuth, (req, res) => {
+  const store = getStore();
+  const features = store.listFeatures(req.params.id);
+  res.json({ features });
+});
+
+/**
+ * POST /api/workspaces/:id/features
+ * Body: { name, description?, status?, priority?, sessionIds? }
+ * Creates a new feature for a workspace.
+ */
+app.post('/api/workspaces/:id/features', requireAuth, (req, res) => {
+  const store = getStore();
+  const ws = store.getWorkspace(req.params.id);
+  if (!ws) return res.status(404).json({ error: 'Workspace not found' });
+
+  const { name, description, status, priority, sessionIds } = req.body || {};
+  if (!name || typeof name !== 'string' || name.trim().length === 0) {
+    return res.status(400).json({ error: 'Name is required' });
+  }
+
+  const feature = store.createFeature({
+    workspaceId: req.params.id,
+    name: name.trim(),
+    description,
+    status,
+    priority,
+    sessionIds: sessionIds || [],
+  });
+
+  res.json({ feature });
+});
+
+/**
+ * PUT /api/features/:id
+ * Body: partial feature fields (status, description, priority, name, etc.)
+ * Updates a feature (status change, edit, etc.).
+ */
+app.put('/api/features/:id', requireAuth, (req, res) => {
+  const store = getStore();
+  const feature = store.updateFeature(req.params.id, req.body || {});
+  if (!feature) return res.status(404).json({ error: 'Feature not found' });
+  res.json({ feature });
+});
+
+/**
+ * DELETE /api/features/:id
+ * Deletes a feature.
+ */
+app.delete('/api/features/:id', requireAuth, (req, res) => {
+  const store = getStore();
+  const success = store.deleteFeature(req.params.id);
+  if (!success) return res.status(404).json({ error: 'Feature not found' });
+  res.json({ success: true });
+});
+
+/**
+ * POST /api/features/:id/sessions/:sessionId
+ * Links a session to a feature.
+ */
+app.post('/api/features/:id/sessions/:sessionId', requireAuth, (req, res) => {
+  const store = getStore();
+  const feature = store.linkSessionToFeature(req.params.id, req.params.sessionId);
+  if (!feature) return res.status(404).json({ error: 'Feature not found' });
+  res.json({ feature });
+});
+
+/**
+ * DELETE /api/features/:id/sessions/:sessionId
+ * Unlinks a session from a feature.
+ */
+app.delete('/api/features/:id/sessions/:sessionId', requireAuth, (req, res) => {
+  const store = getStore();
+  const feature = store.unlinkSessionFromFeature(req.params.id, req.params.sessionId);
+  if (!feature) return res.status(404).json({ error: 'Feature not found' });
+  res.json({ feature });
+});
+
+// ──────────────────────────────────────────────────────────
 //  SESSION TEMPLATES
 // ──────────────────────────────────────────────────────────
 

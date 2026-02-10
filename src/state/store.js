@@ -28,6 +28,7 @@ const DEFAULT_STATE = {
   workspaceGroups: {},    // { groupId: { id, name, color, workspaceIds: [], order: 0 } }
   workspaceOrder: [],     // mixed array of workspace IDs and group IDs for sidebar ordering
   templates: {},          // { templateId: { id, name, command, workingDir, ... } }
+  features: {},           // { featureId: { id, workspaceId, name, description, status, priority, sessionIds, ... } }
   settings: {
     autoRecover: true,
     notificationLevel: 'all', // 'all' | 'errors' | 'none'
@@ -110,6 +111,7 @@ class Store extends EventEmitter {
         workspaceGroups: parsed.workspaceGroups || {},
         workspaceOrder: parsed.workspaceOrder || [],
         templates: parsed.templates || {},
+        features: parsed.features || {},
       };
     } catch (_) {
       return null;
@@ -693,6 +695,116 @@ class Store extends EventEmitter {
     this.save();
     this.emit('template:deleted', { id });
     return true;
+  }
+
+  // ─── Feature Board ─────────────────────────────────────
+
+  /**
+   * Create a new feature for a workspace.
+   * @param {{ workspaceId: string, name: string, description?: string, status?: string, sessionIds?: string[], priority?: string }} params
+   * @returns {object} The created feature
+   */
+  createFeature({ workspaceId, name, description = '', status = 'planned', sessionIds = [], priority = 'normal' }) {
+    const id = crypto.randomUUID();
+    const now = new Date().toISOString();
+    const feature = {
+      id,
+      workspaceId,
+      name,
+      description,
+      status, // planned | active | review | done
+      priority, // low | normal | high | urgent
+      sessionIds, // linked session IDs
+      createdAt: now,
+      updatedAt: now,
+    };
+    this._state.features[id] = feature;
+    this._debouncedSave();
+    this.emit('feature:created', feature);
+    return feature;
+  }
+
+  /**
+   * Get a single feature by ID.
+   * @param {string} id - Feature ID
+   * @returns {object|null} The feature or null if not found
+   */
+  getFeature(id) {
+    return this._state.features[id] || null;
+  }
+
+  /**
+   * List all features for a workspace.
+   * @param {string} workspaceId
+   * @returns {object[]} Array of feature objects
+   */
+  listFeatures(workspaceId) {
+    return Object.values(this._state.features).filter(f => f.workspaceId === workspaceId);
+  }
+
+  /**
+   * Update a feature's fields (status, description, priority, etc.).
+   * @param {string} id - Feature ID
+   * @param {object} updates - Partial feature fields
+   * @returns {object|null} Updated feature or null if not found
+   */
+  updateFeature(id, updates) {
+    const feature = this._state.features[id];
+    if (!feature) return null;
+    // Don't allow changing the ID
+    delete updates.id;
+    Object.assign(feature, updates, { updatedAt: new Date().toISOString() });
+    this._debouncedSave();
+    this.emit('feature:updated', feature);
+    return feature;
+  }
+
+  /**
+   * Delete a feature by ID.
+   * @param {string} id - Feature ID
+   * @returns {boolean} True if deleted, false if not found
+   */
+  deleteFeature(id) {
+    const feature = this._state.features[id];
+    if (!feature) return false;
+    delete this._state.features[id];
+    this._debouncedSave();
+    this.emit('feature:deleted', { id });
+    return true;
+  }
+
+  /**
+   * Link a session to a feature.
+   * @param {string} featureId
+   * @param {string} sessionId
+   * @returns {object|null} Updated feature or null if not found
+   */
+  linkSessionToFeature(featureId, sessionId) {
+    const feature = this._state.features[featureId];
+    if (!feature) return null;
+    if (!feature.sessionIds.includes(sessionId)) {
+      feature.sessionIds.push(sessionId);
+      feature.updatedAt = new Date().toISOString();
+      this._debouncedSave();
+      this.emit('feature:updated', feature);
+    }
+    return feature;
+  }
+
+  /**
+   * Unlink a session from a feature.
+   * @param {string} featureId
+   * @param {string} sessionId
+   * @returns {object|null} Updated feature or null if not found
+   */
+  unlinkSessionFromFeature(featureId, sessionId) {
+    const feature = this._state.features[featureId];
+    if (!feature) return null;
+    feature.sessionIds = feature.sessionIds.filter(id => id !== sessionId);
+    feature.updatedAt = new Date().toISOString();
+    this._debouncedSave();
+    this.emit('feature:updated', feature);
+    return feature;
   }
 
   // ─── Settings ────────────────────────────────────────────
