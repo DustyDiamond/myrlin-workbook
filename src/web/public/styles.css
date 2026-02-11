@@ -2579,6 +2579,55 @@ textarea.input {
   pointer-events: none;
 }
 
+/* ─── Context Menu Submenus ─────────────────────────────── */
+.ctx-item-wrapper {
+  position: relative;
+}
+
+.ctx-has-submenu {
+  justify-content: flex-start;
+}
+
+.ctx-hint {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-secondary);
+  opacity: 0.6;
+  padding-right: 4px;
+}
+
+.ctx-arrow {
+  font-size: 10px;
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+.ctx-submenu {
+  display: none;
+  position: absolute;
+  left: 100%;
+  top: -4px;
+  min-width: 140px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 10001;
+}
+
+.ctx-item-wrapper:hover > .ctx-submenu {
+  display: block;
+  animation: ctx-in 0.1s ease-out;
+}
+
+/* Flip submenu to the left if it would overflow viewport — handled by JS,
+   but also provide a CSS class for it */
+.ctx-submenu.ctx-submenu-left {
+  left: auto;
+  right: 100%;
+}
+
 /* ─── Discover Sessions ───────────────────────────────────── */
 
 .discover-row {

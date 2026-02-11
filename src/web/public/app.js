@@ -1562,19 +1562,17 @@ class CWMApp {
 
     items.push({ type: 'sep' });
 
-    // Model selection
-    items.push({ label: 'Model:', icon: '&#9881;', disabled: true });
-    modelOptions.forEach(m => {
-      items.push({
-        label: '  ' + m.label,
-        icon: '&#183;',
-        action: () => this.setSessionModel(sessionId, m.id),
-        check: currentModel === m.id,
-      });
-    });
+    // Model selection (submenu)
+    const modelSubs = modelOptions.map(m => ({
+      label: m.label,
+      action: () => this.setSessionModel(sessionId, m.id),
+      check: currentModel === m.id,
+    }));
     if (currentModel) {
-      items.push({ label: '  Default', icon: '&#183;', action: () => this.setSessionModel(sessionId, null), check: !currentModel });
+      modelSubs.push({ label: 'Default', action: () => this.setSessionModel(sessionId, null), check: !currentModel });
     }
+    const currentModelLabel = currentModel ? (modelOptions.find(m => m.id === currentModel)?.label || 'Custom') : 'Default';
+    items.push({ label: 'Model', icon: '&#9881;', hint: currentModelLabel, submenu: modelSubs });
 
     items.push({ type: 'sep' });
 
@@ -1612,17 +1610,16 @@ class CWMApp {
       });
     }
 
-    // Move to another workspace
+    // Move to another workspace (submenu)
     const otherWorkspaces = this.state.workspaces.filter(w => w.id !== session.workspaceId);
     if (otherWorkspaces.length > 0) {
       items.push({ type: 'sep' });
-      items.push({ label: 'Move to:', icon: '&#8594;', disabled: true });
-      otherWorkspaces.slice(0, 5).forEach(ws => {
-        items.push({
-          label: '  ' + (ws.name.length > 20 ? ws.name.substring(0, 20) + '...' : ws.name),
-          icon: '&#183;',
+      items.push({
+        label: 'Move to', icon: '&#8594;',
+        submenu: otherWorkspaces.slice(0, 8).map(ws => ({
+          label: ws.name.length > 24 ? ws.name.substring(0, 24) + '...' : ws.name,
           action: () => this.moveSessionToWorkspace(sessionId, ws.id),
-        });
+        })),
       });
     }
 
@@ -5658,9 +5655,22 @@ class CWMApp {
     // Header
     this.els.actionSheetHeader.textContent = title || '';
 
+    // Flatten submenu items inline for mobile action sheets
+    const flatItems = [];
+    items.forEach(item => {
+      if (item.submenu) {
+        flatItems.push({ label: item.label + ':', icon: item.icon, disabled: true });
+        item.submenu.forEach(sub => {
+          flatItems.push({ ...sub, label: '  ' + sub.label, icon: '&#183;' });
+        });
+      } else {
+        flatItems.push(item);
+      }
+    });
+
     // Build items HTML
     const container = this.els.actionSheetItems;
-    container.innerHTML = items.map((item, i) => {
+    container.innerHTML = flatItems.map((item, i) => {
       if (item.type === 'sep') return '<div class="action-sheet-sep"></div>';
       const cls = ['action-sheet-item'];
       if (item.danger) cls.push('as-danger');
@@ -5676,7 +5686,7 @@ class CWMApp {
     // Bind click handlers
     container.querySelectorAll('.action-sheet-item:not([disabled])').forEach(btn => {
       const idx = parseInt(btn.dataset.idx, 10);
-      const item = items[idx];
+      const item = flatItems[idx];
       if (item && item.action) {
         btn.addEventListener('click', () => {
           this.hideActionSheet();
@@ -5724,24 +5734,56 @@ class CWMApp {
 
     // Desktop: render floating context menu (existing behavior)
     const container = this.els.contextMenuItems;
-    container.innerHTML = items.map(item => {
+    container.innerHTML = items.map((item, idx) => {
       if (item.type === 'sep') return '<div class="context-menu-sep"></div>';
       const cls = ['context-menu-item'];
       if (item.danger) cls.push('ctx-danger');
       if (item.check) cls.push('ctx-checked');
+      if (item.submenu) cls.push('ctx-has-submenu');
       const disabledAttr = item.disabled ? ' disabled' : '';
       const checkMark = item.check !== undefined ? `<span class="ctx-check">${item.check ? '&#10003;' : ''}</span>` : '';
-      return `<button class="${cls.join(' ')}"${disabledAttr} data-action="${item.label}">
-        <span class="ctx-icon">${item.icon || ''}</span>${item.label}${checkMark}
-      </button>`;
+      const hint = item.hint ? `<span class="ctx-hint">${item.hint}</span>` : '';
+      const arrow = item.submenu ? '<span class="ctx-arrow">&#9656;</span>' : '';
+      // Build submenu HTML if present
+      let submenuHtml = '';
+      if (item.submenu) {
+        submenuHtml = `<div class="ctx-submenu" data-parent-idx="${idx}">` +
+          item.submenu.map((sub, si) => {
+            const sCls = ['context-menu-item'];
+            if (sub.check) sCls.push('ctx-checked');
+            if (sub.danger) sCls.push('ctx-danger');
+            const sCheck = sub.check !== undefined ? `<span class="ctx-check">${sub.check ? '&#10003;' : ''}</span>` : '';
+            return `<button class="${sCls.join(' ')}" data-sub-idx="${si}">
+              ${sub.label}${sCheck}
+            </button>`;
+          }).join('') + '</div>';
+      }
+      return `<div class="ctx-item-wrapper" data-idx="${idx}"><button class="${cls.join(' ')}"${disabledAttr} data-action="${item.label}">
+        <span class="ctx-icon">${item.icon || ''}</span>${item.label}${hint}${checkMark}${arrow}
+      </button>${submenuHtml}</div>`;
     }).join('');
 
-    // Bind click handlers
-    const actionItems = items.filter(it => !it.type && !it.disabled);
-    let actionIdx = 0;
-    container.querySelectorAll('.context-menu-item:not([disabled])').forEach(btn => {
-      const item = actionItems[actionIdx++];
-      if (item && item.action) {
+    // Bind click handlers for regular items
+    container.querySelectorAll('.ctx-item-wrapper').forEach(wrapper => {
+      const idx = parseInt(wrapper.dataset.idx);
+      const item = items[idx];
+      if (!item || item.type === 'sep') return;
+
+      if (item.submenu) {
+        // Bind submenu item clicks
+        wrapper.querySelectorAll('.ctx-submenu .context-menu-item').forEach(btn => {
+          const si = parseInt(btn.dataset.subIdx);
+          const sub = item.submenu[si];
+          if (sub && sub.action) {
+            btn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              this.hideContextMenu();
+              sub.action();
+            });
+          }
+        });
+      } else if (item.action && !item.disabled) {
+        const btn = wrapper.querySelector('.context-menu-item');
         btn.addEventListener('click', (e) => {
           e.stopPropagation();
           this.hideContextMenu();
@@ -5758,6 +5800,14 @@ class CWMApp {
     const my = Math.min(y, window.innerHeight - rect.height - 8);
     menu.style.left = Math.max(4, mx) + 'px';
     menu.style.top = Math.max(4, my) + 'px';
+
+    // Flip submenus to the left if they'd overflow the right edge
+    const menuRight = menu.getBoundingClientRect().right;
+    container.querySelectorAll('.ctx-submenu').forEach(sub => {
+      if (menuRight + 150 > window.innerWidth) {
+        sub.classList.add('ctx-submenu-left');
+      }
+    });
   }
 
   /* ─── Mobile Terminal Tab Strip ──────────────────────────── */
