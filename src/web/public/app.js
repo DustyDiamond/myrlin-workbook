@@ -5322,8 +5322,8 @@ class CWMApp {
         if (container && tp.term) {
           container.innerHTML = '';
           const xtermEl = tp.term.element;
-          if (xtermEl && xtermEl.parentElement) {
-            container.appendChild(xtermEl.parentElement);
+          if (xtermEl) {
+            container.appendChild(xtermEl);
           }
         }
       } else {
