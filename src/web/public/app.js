@@ -4332,13 +4332,41 @@ class CWMApp {
       }
 
       // Add message count + model info below cost
+      let infoHtml = '';
       if (data.messageCount) {
         const modelInfo = data.modelBreakdown ? Object.keys(data.modelBreakdown).map(m => {
           const short = m.includes('opus') ? 'Opus' : m.includes('sonnet') ? 'Sonnet' : m.includes('haiku') ? 'Haiku' : m;
           return short;
         }).join(', ') : '';
-        const infoHtml = `<div style="font-size:11px;color:var(--subtext0);margin-top:6px">${data.messageCount} messages${modelInfo ? ' · ' + modelInfo : ''}</div>`;
-        // Append after breakdown
+        infoHtml += `<div style="font-size:11px;color:var(--subtext0);margin-top:6px">${data.messageCount} messages${modelInfo ? ' · ' + modelInfo : ''}</div>`;
+      }
+
+      // Context window usage bar (quota)
+      if (data.quota && data.quota.latestInputTokens > 0) {
+        const latest = data.quota.latestInputTokens;
+        const peak = data.quota.peakInputTokens;
+        const maxWindow = 200000; // 200K context window
+        const pct = Math.min(100, (latest / maxWindow * 100)).toFixed(0);
+        const peakPct = Math.min(100, (peak / maxWindow * 100)).toFixed(0);
+        const urgency = pct >= 80 ? 'critical' : pct >= 50 ? 'warning' : 'ok';
+        const urgencyColor = urgency === 'critical' ? 'var(--red)' : urgency === 'warning' ? 'var(--yellow)' : 'var(--green)';
+        const latestK = (latest / 1000).toFixed(0);
+        const peakK = (peak / 1000).toFixed(0);
+
+        infoHtml += `
+          <div style="margin-top:8px;font-size:11px;color:var(--subtext0)">
+            <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+              <span>Context: <strong style="color:${urgencyColor}">${latestK}K</strong> / 200K tokens (${pct}%)</span>
+              <span>Peak: ${peakK}K</span>
+            </div>
+            <div style="height:6px;background:var(--surface0);border-radius:3px;overflow:hidden;position:relative">
+              <div style="height:100%;width:${pct}%;background:${urgencyColor};border-radius:3px;transition:width 0.3s"></div>
+            </div>
+            ${urgency !== 'ok' ? `<div style="color:${urgencyColor};margin-top:3px;font-size:10px">${urgency === 'critical' ? '⚠ Heavy context — consider compacting' : '● Moderate context usage'}</div>` : ''}
+          </div>`;
+      }
+
+      if (infoHtml) {
         this.els.detailCostBreakdown.insertAdjacentHTML('afterend', infoHtml);
       }
     } catch (err) {
@@ -7319,6 +7347,9 @@ class CWMApp {
       html += '</tbody></table></div></div>';
     }
 
+    // Token quota section (populated async)
+    html += '<div id="resources-quota" class="resources-quota-section"></div>';
+
     // Tunnels section (populated async)
     html += '<div id="resources-tunnels" class="resources-tunnel-section"></div>';
 
@@ -7399,6 +7430,12 @@ class CWMApp {
       });
     });
 
+    // Load token quota section
+    this.api('GET', '/api/quota-overview').then(quotaData => {
+      const quotaContainer = document.getElementById('resources-quota');
+      if (quotaContainer) this.renderQuotaOverview(quotaData, quotaContainer);
+    }).catch(() => {});
+
     // Load tunnels section
     this.api('GET', '/api/tunnels').then(tunnelData => {
       const tunnelContainer = document.getElementById('resources-tunnels');
@@ -7450,6 +7487,84 @@ class CWMApp {
         this.showToast('URL copied', 'success');
       });
     });
+  }
+
+  /**
+   * Render the token quota overview section in the Resources panel.
+   * Shows all sessions ranked by context window heaviness with urgency indicators.
+   */
+  renderQuotaOverview(data, container) {
+    if (!data || !data.sessions || data.sessions.length === 0) {
+      container.innerHTML = '';
+      return;
+    }
+
+    const summary = data.summary || {};
+    const formatTokens = (t) => {
+      if (t >= 1000000) return (t / 1000000).toFixed(1) + 'M';
+      if (t >= 1000) return (t / 1000).toFixed(0) + 'K';
+      return t.toString();
+    };
+    const formatCost = (c) => c < 0.01 ? '<$0.01' : '$' + c.toFixed(2);
+
+    let html = `<div class="resources-section-title">
+      Token Quota
+      <span class="total-badge">${summary.totalSessions} sessions · ${formatTokens(summary.totalTokens)} tokens · ${formatCost(summary.totalCost)}</span>
+    </div>`;
+
+    // Summary alert cards for critical/warning sessions
+    if (summary.criticalCount > 0 || summary.warningCount > 0) {
+      html += '<div style="display:flex;gap:8px;margin-bottom:10px">';
+      if (summary.criticalCount > 0) {
+        html += `<div style="flex:1;padding:8px 12px;background:rgba(243,139,168,0.1);border:1px solid var(--red);border-radius:6px;font-size:12px;color:var(--red)">
+          <strong>${summary.criticalCount}</strong> session${summary.criticalCount > 1 ? 's' : ''} over 80% context — consider compacting
+        </div>`;
+      }
+      if (summary.warningCount > 0) {
+        html += `<div style="flex:1;padding:8px 12px;background:rgba(249,226,175,0.1);border:1px solid var(--yellow);border-radius:6px;font-size:12px;color:var(--yellow)">
+          <strong>${summary.warningCount}</strong> session${summary.warningCount > 1 ? 's' : ''} over 50% context
+        </div>`;
+      }
+      html += '</div>';
+    }
+
+    // Session table sorted by heaviness
+    html += `<table class="claude-session-table">
+      <thead><tr>
+        <th>Session</th>
+        <th>Workspace</th>
+        <th>Context</th>
+        <th>Cost</th>
+        <th>Messages</th>
+      </tr></thead><tbody>`;
+
+    // Show top 20 sessions
+    data.sessions.slice(0, 20).forEach(s => {
+      const urgencyColor = s.urgency === 'critical' ? 'var(--red)' : s.urgency === 'warning' ? 'var(--yellow)' : 'var(--green)';
+      const urgencyIcon = s.urgency === 'critical' ? '&#9888;' : s.urgency === 'warning' ? '&#9679;' : '&#10003;';
+      const barWidth = Math.min(100, s.contextPct);
+
+      html += `<tr>
+        <td class="session-name-cell">${this.escapeHtml(s.sessionName)}</td>
+        <td style="font-size:11px;color:var(--subtext0)">${this.escapeHtml(s.workspaceName)}</td>
+        <td style="min-width:140px">
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="color:${urgencyColor};font-size:11px" title="${s.urgency}">${urgencyIcon}</span>
+            <div style="flex:1">
+              <div style="height:5px;background:var(--surface0);border-radius:3px;overflow:hidden">
+                <div style="height:100%;width:${barWidth}%;background:${urgencyColor};border-radius:3px"></div>
+              </div>
+            </div>
+            <span style="font-size:11px;color:var(--text);min-width:40px;text-align:right">${formatTokens(s.latestInputTokens)}</span>
+          </div>
+        </td>
+        <td class="cost-cell" style="font-size:12px">${formatCost(s.totalCost)}</td>
+        <td style="font-size:12px;color:var(--subtext0)">${s.messageCount}</td>
+      </tr>`;
+    });
+
+    html += '</tbody></table>';
+    container.innerHTML = html;
   }
 
   async showWorktreeList(dir) {

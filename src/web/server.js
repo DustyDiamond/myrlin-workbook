@@ -1432,13 +1432,33 @@ app.post('/api/search-conversations', requireAuth, async (req, res) => {
 //  COST TRACKING
 // ──────────────────────────────────────────────────────────
 
-/** Token pricing per million tokens, by model */
+/**
+ * Token pricing per million tokens, by model.
+ * Source: https://platform.claude.com/docs/en/about-claude/pricing
+ * Cache write = 5-minute cache (1.25× base input). Cache read = 0.10× base input.
+ * Last verified: 2026-02-12
+ */
 const TOKEN_PRICING = {
-  'claude-opus-4-6': { input: 15, output: 75, cacheWrite: 18.75, cacheRead: 1.50 },
-  'claude-opus-4-5-20251101': { input: 15, output: 75, cacheWrite: 18.75, cacheRead: 1.50 },
-  'claude-sonnet-4-5-20250929': { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.30 },
-  'claude-haiku-4-5-20251001': { input: 0.80, output: 4, cacheWrite: 1.00, cacheRead: 0.08 },
+  // Current models
+  'claude-opus-4-6':            { input: 5,    output: 25,   cacheWrite: 6.25,  cacheRead: 0.50 },
+  'claude-opus-4-5-20251101':   { input: 5,    output: 25,   cacheWrite: 6.25,  cacheRead: 0.50 },
+  'claude-opus-4-5':            { input: 5,    output: 25,   cacheWrite: 6.25,  cacheRead: 0.50 },
+  'claude-sonnet-4-5-20250929': { input: 3,    output: 15,   cacheWrite: 3.75,  cacheRead: 0.30 },
+  'claude-sonnet-4-5':          { input: 3,    output: 15,   cacheWrite: 3.75,  cacheRead: 0.30 },
+  'claude-haiku-4-5-20251001':  { input: 1,    output: 5,    cacheWrite: 1.25,  cacheRead: 0.10 },
+  'claude-haiku-4-5':           { input: 1,    output: 5,    cacheWrite: 1.25,  cacheRead: 0.10 },
+  // Legacy models (still usable)
+  'claude-opus-4-1-20250805':   { input: 15,   output: 75,   cacheWrite: 18.75, cacheRead: 1.50 },
+  'claude-opus-4-1':            { input: 15,   output: 75,   cacheWrite: 18.75, cacheRead: 1.50 },
+  'claude-opus-4-20250514':     { input: 15,   output: 75,   cacheWrite: 18.75, cacheRead: 1.50 },
+  'claude-opus-4-0':            { input: 15,   output: 75,   cacheWrite: 18.75, cacheRead: 1.50 },
+  'claude-sonnet-4-20250514':   { input: 3,    output: 15,   cacheWrite: 3.75,  cacheRead: 0.30 },
+  'claude-sonnet-4-0':          { input: 3,    output: 15,   cacheWrite: 3.75,  cacheRead: 0.30 },
+  'claude-3-7-sonnet-20250219': { input: 3,    output: 15,   cacheWrite: 3.75,  cacheRead: 0.30 },
+  'claude-3-5-haiku-20241022':  { input: 0.80, output: 4,    cacheWrite: 1.00,  cacheRead: 0.08 },
+  'claude-3-haiku-20240307':    { input: 0.25, output: 1.25, cacheWrite: 0.30,  cacheRead: 0.03 },
 };
+// Default to Sonnet pricing for unknown models
 const DEFAULT_PRICING = { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.30 };
 
 /** In-memory cost cache: keyed by sessionId, stores { mtime, result } */
@@ -1485,6 +1505,12 @@ function calculateSessionCost(jsonlPath) {
   let firstMessage = null;
   let lastMessage = null;
 
+  // Context growth tracking: per-message input_tokens shows context window size
+  // A growing value means the session is accumulating context and may need compaction
+  let latestInputTokens = 0;       // Most recent message's input_tokens (= current context size)
+  let peakInputTokens = 0;         // Highest input_tokens seen (peak context size)
+  const contextSamples = [];       // Sampled input token progression for graphing
+
   for (const line of lines) {
     try {
       const entry = JSON.parse(line);
@@ -1510,6 +1536,12 @@ function calculateSessionCost(jsonlPath) {
       totals.cacheWrite += cacheWriteTokens;
       totals.cacheRead += cacheReadTokens;
 
+      // Track context window growth (input_tokens per message = current context size)
+      latestInputTokens = inputTokens;
+      if (inputTokens > peakInputTokens) peakInputTokens = inputTokens;
+      // Sample every message for the growth timeline (capped at 100 samples)
+      contextSamples.push({ msg: messageCount, tokens: inputTokens, ts });
+
       // Per-model breakdown
       if (!modelBreakdown[model]) {
         modelBreakdown[model] = { input: 0, output: 0, cacheWrite: 0, cacheRead: 0, cost: 0 };
@@ -1530,6 +1562,13 @@ function calculateSessionCost(jsonlPath) {
     } catch (_) {
       // Skip malformed lines
     }
+  }
+
+  // Downsample context growth to max 50 points for the timeline
+  let contextGrowth = contextSamples;
+  if (contextSamples.length > 50) {
+    const step = Math.ceil(contextSamples.length / 50);
+    contextGrowth = contextSamples.filter((_, i) => i % step === 0 || i === contextSamples.length - 1);
   }
 
   // Calculate total costs using weighted model pricing
@@ -1561,6 +1600,12 @@ function calculateSessionCost(jsonlPath) {
     messageCount,
     firstMessage,
     lastMessage,
+    // Quota / context growth metrics
+    quota: {
+      latestInputTokens,       // Current context window size (last message's input_tokens)
+      peakInputTokens,         // Highest context window size observed
+      contextGrowth,           // Sampled timeline: [{ msg, tokens, ts }, ...]
+    },
   };
 }
 
@@ -1625,6 +1670,100 @@ app.get('/api/sessions/:id/cost', requireAuth, (req, res) => {
     return res.json(result);
   } catch (err) {
     return res.status(500).json({ error: 'Failed to calculate cost: ' + err.message });
+  }
+});
+
+/**
+ * GET /api/quota-overview
+ * Returns all sessions ranked by context window size (heaviness).
+ * Helps identify sessions that need compaction or are consuming the most tokens.
+ * Sorted by latestInputTokens descending (heaviest first).
+ */
+app.get('/api/quota-overview', requireAuth, (req, res) => {
+  try {
+    const store = getStore();
+    const allWorkspaces = store.getAllWorkspaces();
+    const sessionQuotas = [];
+
+    for (const workspace of allWorkspaces) {
+      const sessions = store.getWorkspaceSessions(workspace.id);
+      for (const session of sessions) {
+        const resumeSessionId = session.resumeSessionId;
+        if (!resumeSessionId) continue;
+
+        const jsonlPath = findJsonlFile(resumeSessionId);
+        if (!jsonlPath) continue;
+
+        try {
+          const stat = fs.statSync(jsonlPath);
+          if (stat.size >= 10 * 1024 * 1024) continue; // Skip >10MB files
+          const mtimeMs = stat.mtimeMs;
+          const cached = _costCache.get(resumeSessionId);
+          const now = Date.now();
+          let costData;
+
+          if (cached && cached.mtimeMs === mtimeMs && (now - cached.timestamp) < COST_CACHE_TTL) {
+            costData = cached.result;
+          } else {
+            costData = calculateSessionCost(jsonlPath);
+            const result = { sessionId: session.id, resumeSessionId, ...costData };
+            _costCache.set(resumeSessionId, { mtimeMs, timestamp: now, result });
+          }
+
+          const latestInput = costData.quota ? costData.quota.latestInputTokens : 0;
+          const peakInput = costData.quota ? costData.quota.peakInputTokens : 0;
+          const totalCost = costData.cost ? costData.cost.total : 0;
+          const totalTokens = costData.tokens ? costData.tokens.total : 0;
+          const messages = costData.messageCount || 0;
+
+          // Heaviness score: context usage as percentage of 200K window
+          const contextPct = Math.round((latestInput / 200000) * 100);
+          // Compaction urgency: >80% = critical, >50% = warning, else OK
+          const urgency = contextPct >= 80 ? 'critical' : contextPct >= 50 ? 'warning' : 'ok';
+
+          sessionQuotas.push({
+            sessionId: session.id,
+            sessionName: session.name || session.id.substring(0, 12),
+            workspaceId: workspace.id,
+            workspaceName: workspace.name,
+            latestInputTokens: latestInput,
+            peakInputTokens: peakInput,
+            contextPct,
+            urgency,
+            totalTokens,
+            totalCost,
+            messageCount: messages,
+            fileSize: stat.size,
+            lastMessage: costData.lastMessage || null,
+          });
+        } catch (_) {
+          // Skip sessions whose JSONL files can't be read
+        }
+      }
+    }
+
+    // Sort by context window size descending (heaviest first)
+    sessionQuotas.sort((a, b) => b.latestInputTokens - a.latestInputTokens);
+
+    // Summary stats
+    const totalSessions = sessionQuotas.length;
+    const criticalCount = sessionQuotas.filter(s => s.urgency === 'critical').length;
+    const warningCount = sessionQuotas.filter(s => s.urgency === 'warning').length;
+    const totalTokensAll = sessionQuotas.reduce((sum, s) => sum + s.totalTokens, 0);
+    const totalCostAll = sessionQuotas.reduce((sum, s) => sum + s.totalCost, 0);
+
+    res.json({
+      summary: {
+        totalSessions,
+        criticalCount,
+        warningCount,
+        totalTokens: totalTokensAll,
+        totalCost: Math.round(totalCostAll * 1000) / 1000,
+      },
+      sessions: sessionQuotas,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to get quota overview: ' + err.message });
   }
 });
 
