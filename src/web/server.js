@@ -57,7 +57,8 @@ app.use((req, res, next) => {
   res.setHeader('Content-Security-Policy',
     "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; " +
     "connect-src 'self' ws://localhost:* wss://localhost:* ws://127.0.0.1:* wss://127.0.0.1:*; " +
-    "img-src 'self' data:; font-src 'self';"
+    "img-src 'self' data:; font-src 'self' https://fonts.gstatic.com; " +
+    "style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com;"
   );
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');

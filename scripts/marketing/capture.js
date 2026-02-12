@@ -598,6 +598,8 @@ class MarketingCapture {
     console.log('\n--- GIF Recordings ---');
 
     const recordings = [
+      ['hero-demo', () => this.recordHeroDemo()],
+      ['workspace-docs', () => this.recordWorkspaceDocs()],
       ['theme-switching', () => this.recordThemeSwitching()],
       ['quick-switcher', () => this.recordQuickSwitcher()],
       ['create-session', () => this.recordCreateSession()],
@@ -719,6 +721,260 @@ class MarketingCapture {
     await page.waitForTimeout(300);
 
     return { ctx, page };
+  }
+
+  /**
+   * Smooth cursor movement between two points with easing.
+   * Simulates natural mouse movement for demo recordings.
+   */
+  async smoothMove(page, from, to, steps = 20, duration = 400) {
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      // ease-in-out cubic
+      const ease = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+      const x = from.x + (to.x - from.x) * ease;
+      const y = from.y + (to.y - from.y) * ease;
+      await page.mouse.move(x, y);
+      await page.waitForTimeout(duration / steps);
+    }
+  }
+
+  /**
+   * Smooth click: move cursor to element center, pause, then click.
+   */
+  async smoothClick(page, selector, pauseMs = 150) {
+    const box = await page.locator(selector).first().boundingBox();
+    if (!box) return;
+    const target = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    // Move from current position (or center of viewport) to target
+    await this.smoothMove(page, { x: target.x - 80, y: target.y - 40 }, target);
+    await page.waitForTimeout(pauseMs);
+    await page.mouse.click(target.x, target.y);
+  }
+
+  /**
+   * Helper to fetch all demo sessions via API on a recording page.
+   */
+  async getRecordingSessions(page) {
+    return page.evaluate(async () => {
+      const token = localStorage.getItem('cwm_token');
+      const res = await fetch('/api/sessions', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      const all = data.sessions || data || [];
+      return all.slice(0, 6).map(s => ({ id: s.id, name: s.name }));
+    });
+  }
+
+  // ── Hero Demo Recording ─────────────────────────────────────
+
+  async recordHeroDemo() {
+    const { ctx, page } = await this._startRecording('hero-demo');
+
+    // -- 1. Start in workspace view, show sessions --
+    await this.smoothClick(page, '[data-mode="workspace"]');
+    await page.waitForTimeout(600);
+
+    // Click first workspace
+    await this.smoothClick(page, '.workspace-item');
+    await page.waitForTimeout(500);
+
+    // Let viewer see the workspace sessions
+    await page.waitForTimeout(1200);
+
+    // -- 2. Switch to terminal view --
+    await this.smoothClick(page, '[data-mode="terminal"]');
+    await page.waitForTimeout(800);
+
+    // -- 3. Open sessions into panes one by one --
+    const sessions = await this.getRecordingSessions(page);
+
+    for (let i = 0; i < Math.min(4, sessions.length); i++) {
+      // Open session in pane
+      await page.evaluate(({ slot, session }) => {
+        window.cwm.openTerminalInPane(slot, session.id, session.name, {});
+      }, { slot: i, session: sessions[i] });
+      await page.waitForTimeout(800);
+
+      // Inject initial content
+      const contentFn = [content.session1, content.session2, content.session3, content.session4][i];
+      if (contentFn) {
+        // Write first portion quickly to show content appearing
+        const fullContent = contentFn();
+        const firstChunk = fullContent.substring(0, 600);
+        await page.evaluate(({ slot, text }) => {
+          const tp = window.cwm.terminalPanes[slot];
+          if (tp && tp.term) tp.term.write(text);
+        }, { slot: i, text: firstChunk });
+      }
+      await page.waitForTimeout(400);
+    }
+
+    // Let viewer see all 4 panes populated
+    await page.waitForTimeout(1000);
+
+    // -- 4. Simulate one pane streaming while user types in another --
+    // Pane 0: stream more content progressively (Claude working)
+    const streamContent = content.session1().substring(600);
+    const streamChunks = [];
+    for (let j = 0; j < streamContent.length; j += 30) {
+      streamChunks.push(streamContent.substring(j, j + 30));
+    }
+
+    // Pane 1: show a prompt then user types
+    await page.evaluate(() => {
+      const tp = window.cwm.terminalPanes[1];
+      if (tp && tp.term) {
+        tp.term.write('\r\n\x1b[1m\x1b[35m> \x1b[0m');
+      }
+    });
+
+    // Interleave: stream in pane 0, type in pane 1
+    const userInput = 'refactor the auth module to use JWT tokens instead of sessions';
+    let streamIdx = 0;
+    for (let ci = 0; ci < userInput.length; ci++) {
+      // Type one character in pane 1
+      await page.evaluate(({ ch }) => {
+        const tp = window.cwm.terminalPanes[1];
+        if (tp && tp.term) tp.term.write(ch);
+      }, { ch: userInput[ci] });
+
+      // Stream a chunk in pane 0 every few characters
+      if (ci % 3 === 0 && streamIdx < streamChunks.length) {
+        await page.evaluate(({ chunk }) => {
+          const tp = window.cwm.terminalPanes[0];
+          if (tp && tp.term) tp.term.write(chunk);
+        }, { chunk: streamChunks[streamIdx++] });
+      }
+
+      // Natural typing speed: 40-120ms per character
+      await page.waitForTimeout(40 + Math.random() * 80);
+    }
+
+    await page.waitForTimeout(1200);
+
+    // -- 5. Create a new tab group, switch between them --
+    await this.smoothClick(page, '#terminal-groups-add');
+    await page.waitForTimeout(600);
+
+    // The new tab should appear. Double-click to rename it
+    const newTab = page.locator('.terminal-group-tab').last();
+    const newTabBox = await newTab.boundingBox();
+    if (newTabBox) {
+      await page.mouse.dblclick(newTabBox.x + newTabBox.width / 2, newTabBox.y + newTabBox.height / 2);
+      await page.waitForTimeout(300);
+      // Type name
+      await page.keyboard.type('Debug', { delay: 60 });
+      await page.keyboard.press('Enter');
+      await page.waitForTimeout(600);
+    }
+
+    // Switch back to first tab
+    await this.smoothClick(page, '.terminal-group-tab');
+    await page.waitForTimeout(1000);
+
+    // Switch to Debug tab
+    const debugTab = page.locator('.terminal-group-tab').last();
+    const debugBox = await debugTab.boundingBox();
+    if (debugBox) {
+      await this.smoothMove(page,
+        { x: debugBox.x - 60, y: debugBox.y },
+        { x: debugBox.x + debugBox.width / 2, y: debugBox.y + debugBox.height / 2 }
+      );
+      await page.waitForTimeout(150);
+      await page.mouse.click(debugBox.x + debugBox.width / 2, debugBox.y + debugBox.height / 2);
+    }
+    await page.waitForTimeout(800);
+
+    // Switch back to original tab to end on full grid
+    await this.smoothClick(page, '.terminal-group-tab');
+    await page.waitForTimeout(1200);
+
+    await this._stopRecording(ctx, page, 'hero-demo');
+  }
+
+  // ── Workspace Docs Recording ────────────────────────────────
+
+  async recordWorkspaceDocs() {
+    const { ctx, page } = await this._startRecording('workspace-docs');
+
+    // Click first workspace
+    await this.smoothClick(page, '[data-mode="workspace"]');
+    await page.waitForTimeout(400);
+    await this.smoothClick(page, '.workspace-item');
+    await page.waitForTimeout(400);
+
+    // Seed notes for workspace 1 via API before switching view
+    const wsId = await page.evaluate(() => {
+      return window.cwm.state.activeWorkspace ? window.cwm.state.activeWorkspace.id : null;
+    });
+
+    if (wsId) {
+      await page.evaluate(async ({ wsId }) => {
+        const token = localStorage.getItem('cwm_token');
+        await fetch(`/api/workspaces/${wsId}/docs/notes`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: '**Auth Module Refactor**\n\nMigrating from session-based auth to JWT.\n\n- [x] Design token schema\n- [x] Implement /auth/login endpoint\n- [ ] Add refresh token rotation\n- [ ] Update middleware\n\nTarget: v0.2.0 release' })
+        });
+      }, { wsId });
+    }
+
+    // Seed notes for workspace 2
+    const ws2Id = await page.evaluate(() => {
+      const wsList = window.cwm.state.workspaces;
+      return wsList && wsList.length > 1 ? wsList[1].id : null;
+    });
+
+    if (ws2Id) {
+      await page.evaluate(async ({ ws2Id }) => {
+        const token = localStorage.getItem('cwm_token');
+        await fetch(`/api/workspaces/${ws2Id}/docs/notes`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: '**API Performance Audit**\n\nBaseline benchmarks collected. P95 latency at 340ms.\n\n- Connection pooling added (PgBouncer)\n- Query plan analysis for /api/users\n- Redis caching layer for session lookups\n\nNext: load test with k6' })
+        });
+      }, { ws2Id });
+    }
+
+    // Switch to Docs view
+    await this.smoothClick(page, '[data-mode="docs"]');
+    await page.waitForTimeout(800);
+
+    // Click the "Docs" tab (main docs tab, not subtab)
+    const docsTab = page.locator('.docs-tab[data-tab="docs"]');
+    if (await docsTab.isVisible()) {
+      await this.smoothClick(page, '.docs-tab[data-tab="docs"]');
+      await page.waitForTimeout(800);
+    }
+
+    // Let viewer see the notes for workspace 1
+    await page.waitForTimeout(1500);
+
+    // Switch to second workspace via sidebar
+    const secondWs = page.locator('.workspace-item').nth(1);
+    if (await secondWs.isVisible()) {
+      const secondBox = await secondWs.boundingBox();
+      if (secondBox) {
+        await this.smoothMove(page,
+          { x: secondBox.x + 200, y: secondBox.y - 50 },
+          { x: secondBox.x + secondBox.width / 2, y: secondBox.y + secondBox.height / 2 }
+        );
+        await page.waitForTimeout(150);
+        await page.mouse.click(secondBox.x + secondBox.width / 2, secondBox.y + secondBox.height / 2);
+      }
+      await page.waitForTimeout(1000);
+
+      // Different notes should now show
+      await page.waitForTimeout(1500);
+    }
+
+    // Switch back to first workspace
+    await this.smoothClick(page, '.workspace-item');
+    await page.waitForTimeout(1200);
+
+    await this._stopRecording(ctx, page, 'workspace-docs');
   }
 
   async _stopRecording(ctx, page, name) {

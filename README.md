@@ -10,7 +10,7 @@ Discovers every Claude Code session you've ever run by scanning `~/.claude/proje
 > Currently supports Claude Code. Other AI coding tools on the [roadmap](#roadmap).
 
 <p align="center">
-  <img src="docs/images/terminal-typing.gif" alt="Multi-terminal Claude sessions" width="800">
+  <img src="docs/images/hero-demo.gif" alt="Multi-terminal Claude sessions" width="800">
 </p>
 
 ---
@@ -131,6 +131,8 @@ What those tools do better than this: Opcode has 20k stars and cost tracking. Cl
 ### Per-Workspace Docs & Feature Board
 
 ![Docs panel with Notes, Goals, Tasks, Roadmap, and Rules](docs/images/docs-panel.png)
+
+![Switching between workspace docs](docs/images/workspace-docs.gif)
 
 - Notes, Goals, Tasks, Rules, and Roadmap sections per workspace
 - Kanban-style feature board (Planned -> Active -> Review -> Done)
