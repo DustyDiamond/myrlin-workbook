@@ -353,6 +353,9 @@ class CWMApp {
       updateDismissBtn: document.getElementById('update-dismiss-btn'),
       updateCloseBtn: document.getElementById('update-close-btn'),
       updateFooter: document.getElementById('update-footer'),
+
+      // Image upload
+      imageUploadInput: document.getElementById('image-upload-input'),
     };
   }
 
@@ -493,6 +496,16 @@ class CWMApp {
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') this.hideContextMenu();
     });
+
+    // Image upload — file input change handler
+    if (this.els.imageUploadInput) {
+      this.els.imageUploadInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        this.handleImageUpload(file, this._uploadTargetSlot);
+        e.target.value = ''; // Reset so same file can be re-selected
+      });
+    }
 
     // Suppress browser's native right-click menu within the app
     this.els.app.addEventListener('contextmenu', (e) => {
@@ -715,6 +728,13 @@ class CWMApp {
           ? this.terminalPanes[this._activeTerminalSlot]
           : this.terminalPanes.find(tp => tp !== null);
         if (!activePane) return;
+
+        // Image upload trigger
+        if (key === 'upload') {
+          this._uploadTargetSlot = this._activeTerminalSlot;
+          if (this.els.imageUploadInput) this.els.imageUploadInput.click();
+          return;
+        }
 
         // Keyboard toggle — switches between scroll mode and type mode
         if (key === 'keyboard') {
@@ -5038,9 +5058,20 @@ class CWMApp {
             e.dataTransfer.dropEffect = (isProject || isProjectSession) ? 'copy' : 'move';
             pane.classList.add('drag-over');
           }
+          // Image file drag (check AFTER cwm/* types to avoid conflicts)
+          else if (e.dataTransfer.types.includes('Files') && this.terminalPanes[slotIdx]) {
+            const items = [...(e.dataTransfer.items || [])];
+            const hasImage = items.some(item => item.kind === 'file' && item.type.startsWith('image/'));
+            if (hasImage) {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'copy';
+              pane.classList.add('image-drag-over');
+            }
+          }
         });
         pane.addEventListener('dragleave', () => {
           pane.classList.remove('drag-over');
+          pane.classList.remove('image-drag-over');
         });
         pane.addEventListener('drop', async (e) => {
           e.preventDefault();
@@ -5121,6 +5152,16 @@ class CWMApp {
             return;
           }
 
+          // Image file drop — upload and send to Claude
+          if (e.dataTransfer.files.length > 0 && this.terminalPanes[slotIdx]) {
+            pane.classList.remove('image-drag-over');
+            const file = [...e.dataTransfer.files].find(f => f.type.startsWith('image/'));
+            if (file) {
+              this.handleImageUpload(file, slotIdx);
+              return;
+            }
+          }
+
           // Drop a workspace into terminal pane — start a new Claude session
           const workspaceId = e.dataTransfer.getData('cwm/workspace');
           if (workspaceId) {
@@ -5149,6 +5190,18 @@ class CWMApp {
         const closeBtn = pane.querySelector('.terminal-pane-close');
         if (closeBtn) {
           closeBtn.addEventListener('click', () => this.closeTerminalPane(slotIdx));
+        }
+
+        // Upload image button
+        const uploadBtn = pane.querySelector('.terminal-pane-upload');
+        if (uploadBtn) {
+          uploadBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const tp = this.terminalPanes[slotIdx];
+            if (!tp) return;
+            this._uploadTargetSlot = slotIdx;
+            if (this.els.imageUploadInput) this.els.imageUploadInput.click();
+          });
         }
 
         // Drag-to-reposition: make pane header draggable to swap panes
@@ -5261,6 +5314,8 @@ class CWMApp {
     if (titleEl) titleEl.textContent = sessionName || sessionId;
     const closeBtn = paneEl.querySelector('.terminal-pane-close');
     if (closeBtn) closeBtn.hidden = false;
+    const uploadBtn2 = paneEl.querySelector('.terminal-pane-upload');
+    if (uploadBtn2) uploadBtn2.hidden = false;
 
     // Create and mount TerminalPane
     const tp = new TerminalPane(containerId, sessionId, sessionName, spawnOpts);
@@ -5431,6 +5486,8 @@ class CWMApp {
     if (titleEl) titleEl.textContent = 'Drop a session here';
     const closeBtn = paneEl.querySelector('.terminal-pane-close');
     if (closeBtn) closeBtn.hidden = true;
+    const uploadBtn3 = paneEl.querySelector('.terminal-pane-upload');
+    if (uploadBtn3) uploadBtn3.hidden = true;
     const activityEl = document.getElementById(`term-activity-${slotIdx}`);
     if (activityEl) activityEl.innerHTML = '';
     const container = document.getElementById(`term-container-${slotIdx}`);
@@ -5478,6 +5535,7 @@ class CWMApp {
       const container = document.getElementById(`term-container-${slot}`);
       const titleEl = paneEl ? paneEl.querySelector('.terminal-pane-title') : null;
       const closeBtn = paneEl ? paneEl.querySelector('.terminal-pane-close') : null;
+      const uploadBtnEl = paneEl ? paneEl.querySelector('.terminal-pane-upload') : null;
       if (!paneEl) return;
 
       if (tp) {
@@ -5486,6 +5544,7 @@ class CWMApp {
         paneEl.classList.remove('terminal-pane-empty');
         if (titleEl) titleEl.textContent = tp.sessionName || tp.sessionId;
         if (closeBtn) closeBtn.hidden = false;
+        if (uploadBtnEl) uploadBtnEl.hidden = false;
         // Move the xterm element into the new container
         if (container && tp.term) {
           container.innerHTML = '';
@@ -5500,6 +5559,7 @@ class CWMApp {
         paneEl.classList.add('terminal-pane-empty');
         if (titleEl) titleEl.textContent = 'Drop a session here';
         if (closeBtn) closeBtn.hidden = true;
+        if (uploadBtnEl) uploadBtnEl.hidden = true;
         if (container) container.innerHTML = '';
       }
     });
@@ -6875,6 +6935,8 @@ class CWMApp {
         if (header) header.textContent = 'Drop a session here';
         const closeBtn = paneEl.querySelector('.terminal-pane-close');
         if (closeBtn) closeBtn.hidden = true;
+        const uploadBtnG = paneEl.querySelector('.terminal-pane-upload');
+        if (uploadBtnG) uploadBtnG.hidden = true;
         // Clear any leftover xterm DOM from the terminal container
         const termContainer = paneEl.querySelector('.terminal-container');
         if (termContainer) termContainer.innerHTML = '';
@@ -8099,6 +8161,90 @@ class CWMApp {
     }
   }
 
+  /* ─── Image Upload for Terminal Sessions ──────────────────── */
+
+  /**
+   * Upload an image file and send its path to a terminal session.
+   * Shows a preview + optional message prompt before injecting.
+   * @param {File} file - Image file from file input or drag-and-drop
+   * @param {number} slotIdx - Terminal pane slot index
+   */
+  async handleImageUpload(file, slotIdx) {
+    const tp = this.terminalPanes[slotIdx];
+    if (!tp || !tp.sessionId) {
+      this.showToast('No active session in this pane', 'warning');
+      return;
+    }
+
+    // Validate file type and size
+    if (!file.type.startsWith('image/')) {
+      this.showToast('Only image files are supported', 'warning');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      this.showToast('Image must be under 10MB', 'warning');
+      return;
+    }
+
+    // Upload to server
+    this.showToast('Uploading image...', 'info');
+    let uploadResult;
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const resp = await fetch(`/api/pty/${tp.sessionId}/upload-image`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.authToken}`,
+          'Content-Type': file.type,
+          'X-Filename': encodeURIComponent(file.name),
+        },
+        body: arrayBuffer,
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ error: 'Upload failed' }));
+        throw new Error(err.error || 'Upload failed');
+      }
+      uploadResult = await resp.json();
+    } catch (err) {
+      this.showToast('Upload failed: ' + err.message, 'error');
+      return;
+    }
+
+    // Show prompt modal with image thumbnail preview
+    const thumbUrl = URL.createObjectURL(file);
+    const sizeStr = file.size < 1024 * 1024
+      ? (file.size / 1024).toFixed(0) + ' KB'
+      : (file.size / (1024 * 1024)).toFixed(1) + ' MB';
+    const result = await this.showPromptModal({
+      title: 'Send Image to Session',
+      headerHtml: `<div style="text-align:center;margin-bottom:12px;">
+        <img src="${thumbUrl}" style="max-width:100%;max-height:200px;border-radius:8px;border:1px solid var(--surface1);" alt="Preview">
+        <div style="font-size:12px;color:var(--subtext0);margin-top:6px;">${this.escapeHtml(file.name)} (${sizeStr})</div>
+      </div>`,
+      fields: [
+        { key: 'message', label: 'Message (optional)', type: 'text', placeholder: 'e.g. "What does this screenshot show?"', value: '' }
+      ],
+      confirmText: 'Send to Claude',
+      confirmClass: 'btn-primary',
+    });
+    URL.revokeObjectURL(thumbUrl);
+
+    if (!result) return; // User cancelled
+
+    // Inject into PTY via WebSocket
+    if (!tp.ws || tp.ws.readyState !== WebSocket.OPEN) {
+      this.showToast('Terminal not connected', 'warning');
+      return;
+    }
+
+    const message = result.message
+      ? `${result.message} ${uploadResult.path}`
+      : `Please analyze this image: ${uploadResult.path}`;
+    tp.ws.send(JSON.stringify({ type: 'input', data: message + '\r' }));
+
+    this.showToast('Image sent to session', 'success');
+  }
+
   /* ─── Session Cost Cache (best-effort, non-blocking) ──────── */
 
   _getSessionCostCached(sessionId) {
@@ -8125,7 +8271,7 @@ class CWMApp {
       this.api('GET', `/api/sessions/${sid}/cost`).then(data => {
         this._costFetchInFlight.delete(sid);
         if (data && (data.totalCost !== undefined || data.cost !== undefined)) {
-          const cost = data.totalCost ?? data.cost ?? null;
+          const cost = data.totalCost ?? (data.cost && typeof data.cost === 'object' ? data.cost.total : data.cost) ?? null;
           this._costCache[sid] = { cost, ts: Date.now() };
           // Trigger a soft re-render of workspaces to show updated cost badges
           this.renderWorkspaces();

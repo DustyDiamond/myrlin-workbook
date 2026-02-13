@@ -2393,6 +2393,10 @@ textarea.input {
   .terminal-mobile-toolbar .toolbar-send:active {
     opacity: 0.8;
   }
+  .terminal-mobile-toolbar .toolbar-upload {
+    min-width: 44px; font-size: 13px; color: var(--blue); border-color: var(--blue);
+  }
+  .terminal-mobile-toolbar .toolbar-upload:active { opacity: 0.8; }
 }
 
 /* Small mobile */
@@ -3577,6 +3581,20 @@ textarea.input {
 }
 
 .terminal-pane-close { width: 20px; height: 20px; padding: 0; }
+/* Upload image button — reveals on hover, same pattern as close button */
+.terminal-pane-upload { width: 20px; height: 20px; padding: 0; opacity: 0; transition: opacity 0.15s; }
+.terminal-pane:not(.terminal-pane-empty):hover .terminal-pane-upload,
+.terminal-pane-upload:focus-visible { opacity: 1; }
+/* Image file drag indicator — blue dashed (vs mauve for sessions) */
+.terminal-pane.image-drag-over { position: relative; }
+.terminal-pane.image-drag-over .terminal-container {
+  outline: 2px dashed var(--blue); outline-offset: -2px;
+}
+.terminal-pane.image-drag-over::after {
+  content: 'Drop image here'; position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%); color: var(--blue);
+  font-size: 14px; font-weight: 600; pointer-events: none; z-index: 10;
+}
 .terminal-container { flex: 1; overflow: hidden; }
 .terminal-pane-empty .terminal-container {
   display: flex; align-items: center; justify-content: center;

@@ -697,6 +697,7 @@ app.get('/api/stats', requireAuth, (req, res) => {
 
 const fs = require('fs');
 const os = require('os');
+const crypto = require('crypto');
 
 // ─── Discover Cache (30s TTL) ──────────────────────────────
 let _discoverCache = null;
@@ -2737,6 +2738,44 @@ app.post('/api/pty/:sessionId/kill', requireAuth, (req, res) => {
     return res.status(500).json({ error: 'Failed to kill session' });
   }
 });
+
+// ── Image upload for terminal sessions ──
+app.post('/api/pty/:sessionId/upload-image',
+  requireAuth,
+  express.raw({ type: ['image/*', 'application/octet-stream'], limit: '10mb' }),
+  (req, res) => {
+    const { sessionId } = req.params;
+    const filename = req.headers['x-filename'] || 'image.png';
+    const contentType = req.headers['content-type'] || 'image/png';
+
+    if (!req.body || req.body.length === 0) {
+      return res.status(400).json({ error: 'No image data received' });
+    }
+
+    // Sanitize and save
+    const ext = path.extname(filename).toLowerCase() || '.png';
+    const allowedExts = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'];
+    if (!allowedExts.includes(ext)) {
+      return res.status(400).json({ error: 'Unsupported image format' });
+    }
+
+    const safeName = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}${ext}`;
+    const dir = path.join(__dirname, '..', '..', 'uploads', sessionId);
+    fs.mkdirSync(dir, { recursive: true });
+
+    const filePath = path.join(dir, safeName);
+    fs.writeFileSync(filePath, req.body);
+
+    console.log(`[Upload] Saved image for session ${sessionId}: ${safeName} (${req.body.length} bytes)`);
+
+    res.json({
+      path: path.resolve(filePath),
+      filename: safeName,
+      originalName: filename,
+      size: req.body.length,
+    });
+  }
+);
 
 
 // ──────────────────────────────────────────────────────────
