@@ -84,9 +84,10 @@ if (process.argv.includes('--demo')) {
 // ─── Start Server ──────────────────────────────────────────
 
 const port = parseInt(process.env.PORT, 10) || 3456;
-const server = startServer(port);
+const host = process.env.CWM_HOST || '127.0.0.1';
+const server = startServer(port, host);
 
-console.log(`CWM GUI running at http://localhost:${port}`);
+console.log(`CWM GUI running at http://${host}:${port}`);
 console.log('Press Ctrl+C to stop.');
 
 // Snapshot frontend files as "last known good" on successful start

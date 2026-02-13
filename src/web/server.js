@@ -3972,13 +3972,9 @@ app.get('/api/workspaces/:id/conflicts', requireAuth, (req, res) => {
 // Reference to PTY manager for cleanup on shutdown
 let _ptyManager = null;
 
-function startServer(port = 3456) {
+function startServer(port = 3456, host = '127.0.0.1') {
   // Wire store events to SSE before accepting connections
   attachStoreEvents();
-
-  // Bind to localhost by default for security (not exposed on LAN).
-  // Set CWM_HOST=0.0.0.0 to allow access from other devices (e.g. mobile via tunnel).
-  const host = process.env.CWM_HOST || '127.0.0.1';
 
   const server = app.listen(port, host, () => {
     // Server is ready - caller handles the log message
