@@ -3976,7 +3976,11 @@ function startServer(port = 3456) {
   // Wire store events to SSE before accepting connections
   attachStoreEvents();
 
-  const server = app.listen(port, () => {
+  // Bind to localhost by default for security (not exposed on LAN).
+  // Set CWM_HOST=0.0.0.0 to allow access from other devices (e.g. mobile via tunnel).
+  const host = process.env.CWM_HOST || '127.0.0.1';
+
+  const server = app.listen(port, host, () => {
     // Server is ready - caller handles the log message
   });
 
