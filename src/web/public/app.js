@@ -428,11 +428,11 @@ class CWMApp {
       });
     }
 
-    // Projects refresh
+    // Projects refresh — bypass both browser and server caches
     if (this.els.projectsRefresh) {
       this.els.projectsRefresh.addEventListener('click', () => {
-        sessionStorage.removeItem('cwm_projects'); // Clear cache
-        this.loadProjects();
+        sessionStorage.removeItem('cwm_projects');
+        this.loadProjects(true);
         this.showToast('Refreshing projects...', 'info');
       });
     }
@@ -4778,22 +4778,29 @@ class CWMApp {
      PROJECTS PANEL
      ═══════════════════════════════════════════════════════════ */
 
-  async loadProjects() {
+  /**
+   * Load projects from server. Uses dual caching (browser + server) unless forceRefresh.
+   * @param {boolean} [forceRefresh=false] - Bypass both browser and server caches
+   */
+  async loadProjects(forceRefresh = false) {
     try {
-      // Try sessionStorage cache first
-      const cached = sessionStorage.getItem('cwm_projects');
-      if (cached) {
-        try {
-          const parsed = JSON.parse(cached);
-          if (parsed.ts && Date.now() - parsed.ts < 30000) {
-            this.state.projects = parsed.data || [];
-            this.renderProjects();
-            return;
-          }
-        } catch { /* ignore stale cache */ }
+      // Try sessionStorage cache first (skip if force refreshing)
+      if (!forceRefresh) {
+        const cached = sessionStorage.getItem('cwm_projects');
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            if (parsed.ts && Date.now() - parsed.ts < 30000) {
+              this.state.projects = parsed.data || [];
+              this.renderProjects();
+              return;
+            }
+          } catch { /* ignore stale cache */ }
+        }
       }
 
-      const data = await this.api('GET', '/api/discover');
+      const url = forceRefresh ? '/api/discover?refresh=true' : '/api/discover';
+      const data = await this.api('GET', url);
       this.state.projects = data.projects || [];
       // Cache for 30s
       sessionStorage.setItem('cwm_projects', JSON.stringify({ ts: Date.now(), data: this.state.projects }));
@@ -7958,6 +7965,9 @@ class CWMApp {
 
     html += '</div>';
 
+    // Background PTY sessions section — shows PTYs with no connected terminal pane
+    html += '<div id="resources-pty-bg" class="resources-pty-bg-section"></div>';
+
     // Stopped sessions section (collapsible)
     const allSessions = [...(this.state.sessions || []), ...(this.state.allSessions || [])];
     const stoppedSessions = allSessions.filter(s => s.status === 'stopped' || s.status === 'crashed' || s.status === 'error');
@@ -8084,6 +8094,86 @@ class CWMApp {
       const tunnelContainer = document.getElementById('resources-tunnels');
       if (tunnelContainer) this.renderTunnels(tunnelData, tunnelContainer);
     }).catch(() => {});
+
+    // Load background PTY sessions
+    this.api('GET', '/api/pty').then(ptyData => {
+      const container = document.getElementById('resources-pty-bg');
+      if (container) this.renderBackgroundPtySessions(ptyData, container);
+    }).catch(() => {});
+  }
+
+  /**
+   * Render background PTY sessions (those with zero connected clients).
+   * Shows a cleanup button to kill all orphaned sessions.
+   * @param {Object} data - Response from GET /api/pty
+   * @param {HTMLElement} container - DOM element to render into
+   */
+  renderBackgroundPtySessions(data, container) {
+    const sessions = (data.sessions || []);
+    const orphaned = sessions.filter(s => s.clientCount === 0);
+    const connected = sessions.filter(s => s.clientCount > 0);
+
+    let html = `<div class="resources-section-title">
+      Terminal Sessions
+      <span class="total-badge">${connected.length} connected / ${orphaned.length} background</span>
+    </div>`;
+
+    if (orphaned.length === 0) {
+      html += '<div class="resources-empty">No background terminal sessions</div>';
+    } else {
+      html += `<div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+        <button class="btn btn-ghost btn-sm" id="kill-orphaned-pty-btn" style="color:var(--red)">
+          Close all background (${orphaned.length})
+        </button>
+      </div>`;
+      html += `<table class="claude-session-table">
+        <thead><tr><th>Session</th><th>PID</th><th>Status</th><th style="text-align:right">Actions</th></tr></thead>
+        <tbody>`;
+      for (const s of orphaned) {
+        const statusColor = s.alive ? 'var(--green)' : 'var(--overlay0)';
+        html += `<tr>
+          <td class="session-name-cell">${this.escapeHtml(s.sessionId.substring(0, 20))}${s.sessionId.length > 20 ? '...' : ''}</td>
+          <td class="pid-cell">${s.pid || '--'}</td>
+          <td style="color:${statusColor}">${s.alive ? 'running' : 'exited'}</td>
+          <td>
+            <div class="resource-actions">
+              <button class="resource-action-btn action-stop" data-pty-id="${this.escapeHtml(s.sessionId)}" title="Close this PTY">Close</button>
+            </div>
+          </td>
+        </tr>`;
+      }
+      html += '</tbody></table>';
+    }
+
+    container.innerHTML = html;
+
+    // Bind "Close all background" button
+    const killAllBtn = container.querySelector('#kill-orphaned-pty-btn');
+    if (killAllBtn) {
+      killAllBtn.addEventListener('click', async () => {
+        try {
+          const result = await this.api('POST', '/api/pty/kill-orphaned');
+          this.showToast(`Closed ${result.killed} background session${result.killed !== 1 ? 's' : ''}`, 'success');
+          setTimeout(() => this.fetchResources(), 500);
+        } catch (err) {
+          this.showToast(err.message || 'Failed to close sessions', 'error');
+        }
+      });
+    }
+
+    // Bind individual close buttons
+    container.querySelectorAll('.resource-action-btn[data-pty-id]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const ptyId = btn.dataset.ptyId;
+        try {
+          await this.api('POST', `/api/pty/${encodeURIComponent(ptyId)}/kill`);
+          this.showToast('Session closed', 'success');
+          setTimeout(() => this.fetchResources(), 500);
+        } catch (err) {
+          this.showToast(err.message || 'Failed to close session', 'error');
+        }
+      });
+    });
   }
 
   renderTunnels(data, container) {

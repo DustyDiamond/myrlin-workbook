@@ -712,7 +712,8 @@ const DISCOVER_CACHE_TTL = 30000; // 30 seconds
  */
 app.get('/api/discover', requireAuth, (req, res) => {
   const now = Date.now();
-  if (_discoverCache && (now - _discoverCacheTime) < DISCOVER_CACHE_TTL) {
+  const forceRefresh = req.query.refresh === 'true';
+  if (!forceRefresh && _discoverCache && (now - _discoverCacheTime) < DISCOVER_CACHE_TTL) {
     return res.json(_discoverCache);
   }
 
@@ -2711,6 +2712,39 @@ app.delete('/api/templates/:id', requireAuth, (req, res) => {
 // ──────────────────────────────────────────────────────────
 
 /**
+ * GET /api/pty
+ * Lists all active PTY sessions with client counts and status.
+ */
+app.get('/api/pty', requireAuth, (req, res) => {
+  const ptyMgr = getPtyManager();
+  if (!ptyMgr) {
+    return res.json({ sessions: [] });
+  }
+  return res.json({ sessions: ptyMgr.listSessions() });
+});
+
+/**
+ * POST /api/pty/kill-orphaned
+ * Kills all PTY sessions that have zero connected WebSocket clients.
+ */
+app.post('/api/pty/kill-orphaned', requireAuth, (req, res) => {
+  const ptyMgr = getPtyManager();
+  if (!ptyMgr) {
+    return res.json({ killed: 0 });
+  }
+  const all = ptyMgr.listSessions();
+  let killed = 0;
+  for (const s of all) {
+    if (s.clientCount === 0) {
+      ptyMgr.killSession(s.sessionId);
+      killed++;
+    }
+  }
+  console.log(`[API] Killed ${killed} orphaned PTY sessions`);
+  return res.json({ killed });
+});
+
+/**
  * POST /api/pty/:sessionId/kill
  * Kills the PTY process for a session. The session can then be restarted
  * by reconnecting (dropping it into a terminal pane again).
@@ -4046,14 +4080,17 @@ function startServer(port = 3456, host = '127.0.0.1') {
   const { ptyWss, ptyManager } = attachPtyWebSocket(server);
   _ptyManager = ptyManager;
 
-  // Cleanup tunnels on shutdown
-  const cleanupTunnels = () => {
+  // Cleanup tunnels and PTY sessions on shutdown
+  const cleanup = () => {
+    if (_ptyManager) {
+      try { _ptyManager.destroyAll(); } catch (_) {}
+    }
     for (const [, t] of _tunnels) {
       try { if (t.process) t.process.kill(); } catch {}
     }
   };
-  process.on('SIGINT', cleanupTunnels);
-  process.on('SIGTERM', cleanupTunnels);
+  process.on('SIGINT', cleanup);
+  process.on('SIGTERM', cleanup);
 
   return server;
 }

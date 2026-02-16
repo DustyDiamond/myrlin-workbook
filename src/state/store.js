@@ -362,7 +362,10 @@ class Store extends EventEmitter {
    * Mark a session as recently interacted with (moves to front of recents)
    */
   touchRecent(sessionId) {
-    if (!this._state.sessions[sessionId]) return;
+    const session = this._state.sessions[sessionId];
+    if (!session) return;
+    // Update lastActive timestamp so "last seen" stays current
+    session.lastActive = new Date().toISOString();
     this._state.recentSessions = this._state.recentSessions || [];
     // Remove if already present, then add to end (most recent)
     this._state.recentSessions = this._state.recentSessions.filter(id => id !== sessionId);

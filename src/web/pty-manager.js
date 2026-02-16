@@ -34,6 +34,8 @@ class PtySession {
     this.exitCode = null;
     this.pid = ptyProcess.pid;
     this.pingInterval = null;    // Keepalive ping interval ID
+    this._lastActiveTimer = null; // Debounce timer for lastActive updates
+    this.createdAt = Date.now();  // Track when session was spawned
   }
 
   /**
@@ -167,6 +169,19 @@ class PtySessionManager {
         } catch (_) {
           session.clients.delete(ws);
         }
+      }
+
+      // Throttled lastActive update — fires immediately then at most once per 30s
+      if (!session._lastActiveTimer) {
+        try {
+          const store = getStore();
+          if (store.getSession(sessionId)) {
+            store.updateSession(sessionId, {});
+          }
+        } catch (_) {}
+        session._lastActiveTimer = setTimeout(() => {
+          session._lastActiveTimer = null;
+        }, 30000);
       }
     });
 
@@ -396,6 +411,24 @@ class PtySessionManager {
     for (const [sessionId] of this.sessions) {
       this.killSession(sessionId);
     }
+  }
+
+  /**
+   * List all PTY sessions with summary info.
+   * @returns {Array<{sessionId, pid, alive, clientCount, createdAt}>}
+   */
+  listSessions() {
+    const result = [];
+    for (const [sessionId, session] of this.sessions) {
+      result.push({
+        sessionId,
+        pid: session.pid,
+        alive: session.alive,
+        clientCount: session.clients.size,
+        createdAt: session.createdAt || null,
+      });
+    }
+    return result;
   }
 
   /**
