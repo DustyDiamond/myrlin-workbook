@@ -153,11 +153,6 @@ class PtySessionManager {
     let fullCommand = command;
     if (resumeSessionId) {
       fullCommand += ' --resume ' + resumeSessionId;
-    } else if (cwd) {
-      // No explicit session to resume - use --continue to pick up most recent
-      // conversation in this working directory. On a fresh dir with no history,
-      // Claude will start a new conversation (same as bare `claude`).
-      fullCommand += ' --continue';
     }
     if (bypassPermissions) {
       fullCommand += ' --dangerously-skip-permissions';
