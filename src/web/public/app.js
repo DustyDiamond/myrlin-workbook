@@ -4080,8 +4080,9 @@ class CWMApp {
 
     this.els.toastContainer.appendChild(toast);
 
-    // Auto-dismiss after 60 seconds
-    setTimeout(() => this.dismissToast(toast), 60000);
+    // Auto-dismiss: errors/warnings linger longer than info/success
+    const durations = { info: 3000, success: 3000, warning: 5000, error: 5000 };
+    setTimeout(() => this.dismissToast(toast), durations[level] || 3000);
   }
 
   dismissToast(toast) {
@@ -10548,7 +10549,7 @@ class CWMApp {
 
   renderFeatureBoard() {
     const features = this._features || [];
-    const statuses = ['planned', 'active', 'review', 'done'];
+    const statuses = ['backlog', 'planned', 'in-progress', 'review', 'done'];
 
     statuses.forEach(status => {
       const columnBody = document.querySelector(`.board-column-body[data-status="${status}"]`);
@@ -10562,12 +10563,16 @@ class CWMApp {
         const priorityClass = f.priority ? `board-card-priority-${f.priority}` : 'board-card-priority-normal';
         const sessionCount = (f.sessionIds || []).length;
         const desc = f.description ? `<div class="board-card-desc">${this.escapeHtml(f.description)}</div>` : '';
+        const complexityBadge = f.complexity ? `<span class="board-card-complexity board-card-complexity-${f.complexity}">${f.complexity}</span>` : '';
+        const attemptsBadge = f.attempts > 0 ? `<span class="board-card-attempts" title="Attempt ${f.attempts}/${f.maxRetries || 3}">&#x21bb;${f.attempts}</span>` : '';
+        const waveBadge = f.wave ? `<span class="board-card-wave" title="Wave ${f.wave}">W${f.wave}</span>` : '';
 
         return `<div class="board-card" draggable="true" data-feature-id="${f.id}">
           <div class="board-card-name">${this.escapeHtml(f.name)}</div>
           ${desc}
           <div class="board-card-meta">
             <span class="board-card-priority ${priorityClass}">${f.priority || 'normal'}</span>
+            ${complexityBadge}${waveBadge}${attemptsBadge}
             ${sessionCount > 0 ? `<span class="board-card-sessions">${sessionCount} session${sessionCount > 1 ? 's' : ''}</span>` : ''}
           </div>
         </div>`;
@@ -10631,8 +10636,9 @@ class CWMApp {
           { value: 'urgent', label: 'Urgent' },
         ]},
         { key: 'status', label: 'Status', type: 'select', options: [
+          { value: 'backlog', label: 'Backlog' },
           { value: 'planned', label: 'Planned' },
-          { value: 'active', label: 'Active' },
+          { value: 'in-progress', label: 'In Progress' },
           { value: 'review', label: 'Review' },
           { value: 'done', label: 'Done' },
         ]},
@@ -10647,7 +10653,7 @@ class CWMApp {
         name: result.name,
         description: result.description || '',
         priority: result.priority || 'normal',
-        status: result.status || 'planned',
+        status: result.status || 'backlog',
       });
       await this.loadFeatureBoard();
       this.showToast('Feature created', 'success');
@@ -10666,8 +10672,9 @@ class CWMApp {
     const items = [
       { label: 'Edit', icon: '&#9998;', action: () => this.editFeature(featureId) },
       { type: 'sep' },
+      { label: 'Move to Backlog', icon: '&#128220;', action: () => this.moveFeature(featureId, 'backlog'), disabled: feature.status === 'backlog' },
       { label: 'Move to Planned', icon: '&#128203;', action: () => this.moveFeature(featureId, 'planned'), disabled: feature.status === 'planned' },
-      { label: 'Move to Active', icon: '&#9889;', action: () => this.moveFeature(featureId, 'active'), disabled: feature.status === 'active' },
+      { label: 'Move to In Progress', icon: '&#9889;', action: () => this.moveFeature(featureId, 'in-progress'), disabled: feature.status === 'in-progress' },
       { label: 'Move to Review', icon: '&#128269;', action: () => this.moveFeature(featureId, 'review'), disabled: feature.status === 'review' },
       { label: 'Move to Done', icon: '&#10004;', action: () => this.moveFeature(featureId, 'done'), disabled: feature.status === 'done' },
       { type: 'sep' },

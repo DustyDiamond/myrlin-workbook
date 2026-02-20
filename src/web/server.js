@@ -3408,7 +3408,6 @@ app.get('/api/workspaces/:id/features', requireAuth, (req, res) => {
 
 /**
  * POST /api/workspaces/:id/features
- * Body: { name, description?, status?, priority?, sessionIds? }
  * Creates a new feature for a workspace.
  */
 app.post('/api/workspaces/:id/features', requireAuth, (req, res) => {
@@ -3416,20 +3415,42 @@ app.post('/api/workspaces/:id/features', requireAuth, (req, res) => {
   const ws = store.getWorkspace(req.params.id);
   if (!ws) return res.status(404).json({ error: 'Workspace not found' });
 
-  const { name, description, status, priority, sessionIds } = req.body || {};
+  const {
+    name, description, status, priority, sessionIds,
+    filesToModify, filesToCreate, contextFiles, acceptanceCriteria,
+    dependsOn, complexity, wave, specDocument, reviewNotes, attempts, maxRetries,
+  } = req.body || {};
   if (!name || typeof name !== 'string' || name.trim().length === 0) {
     return res.status(400).json({ error: 'Name is required' });
   }
 
-  const feature = store.createFeature({
-    workspaceId: req.params.id,
-    name: name.trim(),
-    description,
-    status,
-    priority,
-    sessionIds: sessionIds || [],
-  });
+  const VALID_STATUSES = ['backlog', 'planned', 'in-progress', 'review', 'done'];
+  const VALID_PRIORITIES = ['low', 'normal', 'high', 'urgent'];
+  if (status && !VALID_STATUSES.includes(status)) {
+    return res.status(400).json({ error: `Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}` });
+  }
+  if (priority && !VALID_PRIORITIES.includes(priority)) {
+    return res.status(400).json({ error: `Invalid priority. Must be one of: ${VALID_PRIORITIES.join(', ')}` });
+  }
 
+  const params = { workspaceId: req.params.id, name: name.trim() };
+  if (description !== undefined) params.description = description;
+  if (status) params.status = status;
+  if (priority) params.priority = priority;
+  if (sessionIds) params.sessionIds = sessionIds;
+  if (filesToModify) params.filesToModify = filesToModify;
+  if (filesToCreate) params.filesToCreate = filesToCreate;
+  if (contextFiles) params.contextFiles = contextFiles;
+  if (acceptanceCriteria) params.acceptanceCriteria = acceptanceCriteria;
+  if (dependsOn) params.dependsOn = dependsOn;
+  if (complexity) params.complexity = complexity;
+  if (wave !== undefined && wave !== null) params.wave = wave;
+  if (specDocument) params.specDocument = specDocument;
+  if (reviewNotes) params.reviewNotes = reviewNotes;
+  if (attempts !== undefined) params.attempts = attempts;
+  if (maxRetries !== undefined) params.maxRetries = maxRetries;
+
+  const feature = store.createFeature(params);
   res.json({ feature });
 });
 
@@ -3440,7 +3461,16 @@ app.post('/api/workspaces/:id/features', requireAuth, (req, res) => {
  */
 app.put('/api/features/:id', requireAuth, (req, res) => {
   const store = getStore();
-  const feature = store.updateFeature(req.params.id, req.body || {});
+  const body = req.body || {};
+  const VALID_STATUSES = ['backlog', 'planned', 'in-progress', 'review', 'done'];
+  const VALID_PRIORITIES = ['low', 'normal', 'high', 'urgent'];
+  if (body.status && !VALID_STATUSES.includes(body.status)) {
+    return res.status(400).json({ error: `Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}` });
+  }
+  if (body.priority && !VALID_PRIORITIES.includes(body.priority)) {
+    return res.status(400).json({ error: `Invalid priority. Must be one of: ${VALID_PRIORITIES.join(', ')}` });
+  }
+  const feature = store.updateFeature(req.params.id, body);
   if (!feature) return res.status(404).json({ error: 'Feature not found' });
   res.json({ feature });
 });
@@ -3476,6 +3506,20 @@ app.delete('/api/features/:id/sessions/:sessionId', requireAuth, (req, res) => {
   const feature = store.unlinkSessionFromFeature(req.params.id, req.params.sessionId);
   if (!feature) return res.status(404).json({ error: 'Feature not found' });
   res.json({ feature });
+});
+
+/**
+ * GET /api/workspaces/:id/execution-plan
+ * Returns features sorted into execution waves by dependency graph.
+ * Query: ?status=planned (default: planned)
+ */
+app.get('/api/workspaces/:id/execution-plan', requireAuth, (req, res) => {
+  const store = getStore();
+  const ws = store.getWorkspace(req.params.id);
+  if (!ws) return res.status(404).json({ error: 'Workspace not found' });
+  const statusFilter = req.query.status || 'planned';
+  const plan = store.getExecutionPlan(req.params.id, statusFilter);
+  res.json(plan);
 });
 
 // ──────────────────────────────────────────────────────────

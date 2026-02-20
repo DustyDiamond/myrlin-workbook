@@ -651,6 +651,13 @@
               <button class="btn btn-sm btn-ghost" id="board-add-btn">+ Feature</button>
             </div>
             <div class="board-columns" id="board-columns">
+              <div class="board-column" data-status="backlog">
+                <div class="board-column-header">
+                  <span class="board-column-title">Backlog</span>
+                  <span class="board-column-count" data-count="backlog">0</span>
+                </div>
+                <div class="board-column-body" data-status="backlog"></div>
+              </div>
               <div class="board-column" data-status="planned">
                 <div class="board-column-header">
                   <span class="board-column-title">Planned</span>
@@ -658,12 +665,12 @@
                 </div>
                 <div class="board-column-body" data-status="planned"></div>
               </div>
-              <div class="board-column" data-status="active">
+              <div class="board-column" data-status="in-progress">
                 <div class="board-column-header">
-                  <span class="board-column-title">Active</span>
-                  <span class="board-column-count" data-count="active">0</span>
+                  <span class="board-column-title">In Progress</span>
+                  <span class="board-column-count" data-count="in-progress">0</span>
                 </div>
-                <div class="board-column-body" data-status="active"></div>
+                <div class="board-column-body" data-status="in-progress"></div>
               </div>
               <div class="board-column" data-status="review">
                 <div class="board-column-header">

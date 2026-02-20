@@ -3953,6 +3953,35 @@ textarea.input {
   font-family: 'JetBrains Mono', 'Cascadia Code', monospace;
 }
 
+.board-card-complexity {
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-family: 'JetBrains Mono', 'Cascadia Code', monospace;
+  text-transform: uppercase;
+}
+.board-card-complexity-simple { background: rgba(64, 160, 43, 0.15); color: var(--green); }
+.board-card-complexity-medium { background: rgba(223, 142, 29, 0.15); color: var(--yellow); }
+.board-card-complexity-complex { background: rgba(210, 15, 57, 0.15); color: var(--red); }
+
+.board-card-wave {
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: rgba(137, 180, 250, 0.15);
+  color: var(--blue);
+  font-family: 'JetBrains Mono', 'Cascadia Code', monospace;
+}
+
+.board-card-attempts {
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: rgba(254, 100, 11, 0.15);
+  color: var(--peach);
+  font-family: 'JetBrains Mono', 'Cascadia Code', monospace;
+}
+
 /* Drop target highlight */
 .board-column-body.drag-over {
   background: rgba(203, 166, 247, 0.05);
@@ -4040,7 +4069,7 @@ textarea.input {
 .terminal-pane-close { width: 20px; height: 20px; padding: 0; }
 /* Upload image button - floating bottom-right of terminal pane */
 .terminal-pane-upload {
-  position: absolute; bottom: 12px; right: 12px; z-index: 5;
+  position: absolute; bottom: 12px; right: 20px; z-index: 5;
   width: 32px; height: 32px; padding: 0;
   display: flex; align-items: center; justify-content: center;
   background: var(--surface0); border: 1px solid var(--surface1);

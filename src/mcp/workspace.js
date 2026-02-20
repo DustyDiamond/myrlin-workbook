@@ -357,7 +357,7 @@ const TOOLS = [
   {
     name: 'list_features',
     description:
-      'List kanban features for a workspace. Returns feature ID, name, description, status (backlog, planned, in-progress, done), priority, and linked session IDs.',
+      'List kanban features for a workspace. Returns feature ID, name, description, status (backlog, planned, in-progress, review, done), priority, linked session IDs, and structured spec fields (filesToModify, filesToCreate, contextFiles, acceptanceCriteria, dependsOn, complexity, wave, specDocument, reviewNotes, attempts, maxRetries).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -372,7 +372,7 @@ const TOOLS = [
   {
     name: 'create_feature',
     description:
-      'Create a new kanban feature in a workspace. Features track work items with status columns (backlog, planned, in-progress, done).',
+      'Create a new kanban feature in a workspace. Features track work items with status columns (backlog, planned, in-progress, review, done). Supports structured spec fields for pipeline execution.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -390,13 +390,55 @@ const TOOLS = [
         },
         status: {
           type: 'string',
-          enum: ['backlog', 'planned', 'in-progress', 'done'],
+          enum: ['backlog', 'planned', 'in-progress', 'review', 'done'],
           description: 'Initial status column. Defaults to backlog.',
         },
         priority: {
           type: 'string',
-          enum: ['low', 'medium', 'high', 'critical'],
-          description: 'Priority level. Defaults to medium.',
+          enum: ['low', 'normal', 'high', 'urgent'],
+          description: 'Priority level. Defaults to normal.',
+        },
+        filesToModify: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Exact file paths to modify.',
+        },
+        filesToCreate: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Exact file paths to create.',
+        },
+        contextFiles: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Files to read for context (not modify).',
+        },
+        acceptanceCriteria: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Testable conditions defining "done".',
+        },
+        dependsOn: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Feature IDs this depends on.',
+        },
+        complexity: {
+          type: 'string',
+          enum: ['simple', 'medium', 'complex'],
+          description: 'Task complexity. Auto-detected if omitted.',
+        },
+        wave: {
+          type: 'number',
+          description: 'Execution wave number.',
+        },
+        specDocument: {
+          type: 'string',
+          description: 'Path to detailed markdown spec file.',
+        },
+        maxRetries: {
+          type: 'number',
+          description: 'Max retry count before escalation. Defaults to 3.',
         },
       },
       required: ['name'],
@@ -406,7 +448,7 @@ const TOOLS = [
   {
     name: 'update_feature',
     description:
-      'Update a kanban feature — move between columns, change name/description/priority. Pass only the fields you want to change.',
+      'Update a kanban feature — move between columns, change name/description/priority, update spec fields. Pass only the fields you want to change.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -424,16 +466,87 @@ const TOOLS = [
         },
         status: {
           type: 'string',
-          enum: ['backlog', 'planned', 'in-progress', 'done'],
+          enum: ['backlog', 'planned', 'in-progress', 'review', 'done'],
           description: 'Move to this status column.',
         },
         priority: {
           type: 'string',
-          enum: ['low', 'medium', 'high', 'critical'],
+          enum: ['low', 'normal', 'high', 'urgent'],
           description: 'New priority level.',
+        },
+        filesToModify: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Updated file paths to modify.',
+        },
+        filesToCreate: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Updated file paths to create.',
+        },
+        contextFiles: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Updated context files.',
+        },
+        acceptanceCriteria: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Updated acceptance criteria.',
+        },
+        dependsOn: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Updated dependency feature IDs.',
+        },
+        complexity: {
+          type: 'string',
+          enum: ['simple', 'medium', 'complex'],
+          description: 'Updated complexity.',
+        },
+        wave: {
+          type: 'number',
+          description: 'Updated wave number.',
+        },
+        specDocument: {
+          type: 'string',
+          description: 'Updated spec document path.',
+        },
+        reviewNotes: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Updated review notes (accumulated failure reasons).',
+        },
+        attempts: {
+          type: 'number',
+          description: 'Updated attempt count.',
+        },
+        maxRetries: {
+          type: 'number',
+          description: 'Updated max retries.',
         },
       },
       required: ['featureId'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'get_execution_plan',
+    description:
+      'Get the execution plan for a workspace. Returns features topologically sorted into waves by dependency graph, with circular dependency detection. Filters by status (default: planned).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        workspaceId: {
+          type: 'string',
+          description: 'Workspace ID. Omit to use the active workspace.',
+        },
+        status: {
+          type: 'string',
+          enum: ['backlog', 'planned', 'in-progress', 'review', 'done'],
+          description: 'Filter features by status. Defaults to planned.',
+        },
+      },
       additionalProperties: false,
     },
   },
@@ -543,11 +656,24 @@ async function handleListFeatures(args) {
 
 async function handleCreateFeature(args) {
   const id = await resolveWorkspaceId(args.workspaceId);
-  const { name, description, status, priority } = args;
+  const {
+    name, description, status, priority,
+    filesToModify, filesToCreate, contextFiles, acceptanceCriteria,
+    dependsOn, complexity, wave, specDocument, maxRetries,
+  } = args;
   const body = { name };
   if (description) body.description = description;
   if (status) body.status = status;
   if (priority) body.priority = priority;
+  if (filesToModify) body.filesToModify = filesToModify;
+  if (filesToCreate) body.filesToCreate = filesToCreate;
+  if (contextFiles) body.contextFiles = contextFiles;
+  if (acceptanceCriteria) body.acceptanceCriteria = acceptanceCriteria;
+  if (dependsOn) body.dependsOn = dependsOn;
+  if (complexity) body.complexity = complexity;
+  if (wave !== undefined && wave !== null) body.wave = wave;
+  if (specDocument) body.specDocument = specDocument;
+  if (maxRetries !== undefined) body.maxRetries = maxRetries;
 
   const data = await apiRequest(
     'POST',
@@ -564,11 +690,32 @@ async function handleUpdateFeature(args) {
   if (fields.description !== undefined) body.description = fields.description;
   if (fields.status) body.status = fields.status;
   if (fields.priority) body.priority = fields.priority;
+  if (fields.filesToModify) body.filesToModify = fields.filesToModify;
+  if (fields.filesToCreate) body.filesToCreate = fields.filesToCreate;
+  if (fields.contextFiles) body.contextFiles = fields.contextFiles;
+  if (fields.acceptanceCriteria) body.acceptanceCriteria = fields.acceptanceCriteria;
+  if (fields.dependsOn) body.dependsOn = fields.dependsOn;
+  if (fields.complexity) body.complexity = fields.complexity;
+  if (fields.wave !== undefined) body.wave = fields.wave;
+  if (fields.specDocument !== undefined) body.specDocument = fields.specDocument;
+  if (fields.reviewNotes) body.reviewNotes = fields.reviewNotes;
+  if (fields.attempts !== undefined) body.attempts = fields.attempts;
+  if (fields.maxRetries !== undefined) body.maxRetries = fields.maxRetries;
 
   const data = await apiRequest(
     'PUT',
     `/api/features/${encodeURIComponent(featureId)}`,
     body
+  );
+  return ok(data);
+}
+
+async function handleGetExecutionPlan(args) {
+  const id = await resolveWorkspaceId(args.workspaceId);
+  const status = args.status || 'planned';
+  const data = await apiRequest(
+    'GET',
+    `/api/workspaces/${encodeURIComponent(id)}/execution-plan?status=${encodeURIComponent(status)}`
   );
   return ok(data);
 }
@@ -619,6 +766,8 @@ async function handleToolCall(name, args) {
       return handleCreateFeature(args);
     case 'update_feature':
       return handleUpdateFeature(args);
+    case 'get_execution_plan':
+      return handleGetExecutionPlan(args);
     case 'list_sessions':
       return handleListSessions(args);
     case 'get_workspace_cost':

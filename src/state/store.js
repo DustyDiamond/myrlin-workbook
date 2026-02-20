@@ -104,7 +104,7 @@ class Store extends EventEmitter {
       if (!raw.trim()) return null; // Empty file
       const parsed = JSON.parse(raw);
       if (!parsed.workspaces) return null; // Invalid structure
-      return {
+      const state = {
         ...DEFAULT_STATE,
         ...parsed,
         settings: { ...DEFAULT_STATE.settings, ...(parsed.settings || {}) },
@@ -113,6 +113,22 @@ class Store extends EventEmitter {
         templates: parsed.templates || {},
         features: parsed.features || {},
       };
+      // Migrate features: rename 'active' → 'in-progress', add missing fields
+      for (const feature of Object.values(state.features)) {
+        if (feature.status === 'active') feature.status = 'in-progress';
+        if (feature.filesToModify === undefined) feature.filesToModify = [];
+        if (feature.filesToCreate === undefined) feature.filesToCreate = [];
+        if (feature.contextFiles === undefined) feature.contextFiles = [];
+        if (feature.acceptanceCriteria === undefined) feature.acceptanceCriteria = [];
+        if (feature.dependsOn === undefined) feature.dependsOn = [];
+        if (feature.complexity === undefined) feature.complexity = null;
+        if (feature.wave === undefined) feature.wave = null;
+        if (feature.specDocument === undefined) feature.specDocument = null;
+        if (feature.reviewNotes === undefined) feature.reviewNotes = [];
+        if (feature.attempts === undefined) feature.attempts = 0;
+        if (feature.maxRetries === undefined) feature.maxRetries = 3;
+      }
+      return state;
     } catch (_) {
       return null;
     }
@@ -704,10 +720,17 @@ class Store extends EventEmitter {
 
   /**
    * Create a new feature for a workspace.
-   * @param {{ workspaceId: string, name: string, description?: string, status?: string, sessionIds?: string[], priority?: string }} params
+   * Status: backlog | planned | in-progress | review | done
+   * Priority: low | normal | high | urgent
+   * @param {object} params
    * @returns {object} The created feature
    */
-  createFeature({ workspaceId, name, description = '', status = 'planned', sessionIds = [], priority = 'normal' }) {
+  createFeature({
+    workspaceId, name, description = '', status = 'backlog', sessionIds = [], priority = 'normal',
+    filesToModify = [], filesToCreate = [], contextFiles = [], acceptanceCriteria = [],
+    dependsOn = [], complexity = null, wave = null, specDocument = null,
+    reviewNotes = [], attempts = 0, maxRetries = 3,
+  }) {
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
     const feature = {
@@ -715,9 +738,20 @@ class Store extends EventEmitter {
       workspaceId,
       name,
       description,
-      status, // planned | active | review | done
+      status, // backlog | planned | in-progress | review | done
       priority, // low | normal | high | urgent
       sessionIds, // linked session IDs
+      filesToModify, // exact file paths to change
+      filesToCreate, // exact file paths to create
+      contextFiles, // files to read for understanding (not modify)
+      acceptanceCriteria, // testable conditions defining "done"
+      dependsOn, // feature IDs this depends on
+      complexity, // simple | medium | complex (auto-detected if null)
+      wave, // execution wave number (computed by get_execution_plan)
+      specDocument, // path to detailed markdown spec
+      reviewNotes, // accumulated failure reasons from review loop
+      attempts, // how many times executed
+      maxRetries, // max retry count before escalation
       createdAt: now,
       updatedAt: now,
     };
@@ -808,6 +842,87 @@ class Store extends EventEmitter {
     this._debouncedSave();
     this.emit('feature:updated', feature);
     return feature;
+  }
+
+  // ─── Execution Plan ─────────────────────────────────────
+
+  /**
+   * Build a wave-sorted execution plan from features.
+   * Topologically sorts by dependsOn, groups into parallel-safe waves.
+   * @param {string} workspaceId
+   * @param {string} [statusFilter='planned'] - Only include features with this status
+   * @returns {{ waves: Array, circular: string[], orphaned: string[] }}
+   */
+  getExecutionPlan(workspaceId, statusFilter = 'planned') {
+    const allFeatures = this.listFeatures(workspaceId);
+    const features = statusFilter
+      ? allFeatures.filter(f => f.status === statusFilter)
+      : allFeatures;
+    const featureMap = {};
+    for (const f of features) featureMap[f.id] = f;
+    const allIds = new Set(features.map(f => f.id));
+
+    // Detect orphaned dependencies (point to non-existent or filtered-out features)
+    const orphaned = [];
+    for (const f of features) {
+      for (const depId of (f.dependsOn || [])) {
+        if (!allIds.has(depId)) orphaned.push(f.id);
+      }
+    }
+
+    // Topological sort via Kahn's algorithm
+    const inDegree = {};
+    const adj = {}; // depId -> [featureIds that depend on it]
+    for (const f of features) {
+      inDegree[f.id] = 0;
+      adj[f.id] = [];
+    }
+    for (const f of features) {
+      for (const depId of (f.dependsOn || [])) {
+        if (allIds.has(depId)) {
+          inDegree[f.id]++;
+          adj[depId].push(f.id);
+        }
+      }
+    }
+
+    const waves = [];
+    let queue = features.filter(f => inDegree[f.id] === 0).map(f => f.id);
+    const visited = new Set();
+
+    while (queue.length > 0) {
+      const wave = queue.map(id => featureMap[id]);
+      waves.push({ wave: waves.length + 1, features: wave });
+      const nextQueue = [];
+      for (const id of queue) {
+        visited.add(id);
+        for (const depId of adj[id]) {
+          inDegree[depId]--;
+          if (inDegree[depId] === 0) nextQueue.push(depId);
+        }
+      }
+      queue = nextQueue;
+    }
+
+    // Remaining nodes with non-zero in-degree have circular dependencies
+    const circular = features.filter(f => !visited.has(f.id)).map(f => f.id);
+
+    // Auto-detect complexity for features missing it
+    for (const f of features) {
+      if (!f.complexity) {
+        const fileCount = (f.filesToModify || []).length + (f.filesToCreate || []).length;
+        const hasDeps = (f.dependsOn || []).length > 0;
+        if (fileCount <= 2 && !hasDeps && (f.filesToCreate || []).length === 0) {
+          f.complexity = 'simple';
+        } else if (fileCount <= 5) {
+          f.complexity = 'medium';
+        } else {
+          f.complexity = 'complex';
+        }
+      }
+    }
+
+    return { waves, circular, orphaned };
   }
 
   // ─── Settings ────────────────────────────────────────────
