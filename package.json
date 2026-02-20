@@ -16,6 +16,7 @@
     "gui:demo": "node src/gui.js --demo",
     "test": "node test/run.js",
     "mcp:visual-qa": "node src/mcp/visual-qa.js",
+    "mcp:workspace": "node src/mcp/workspace.js",
     "gui:cdp": "node src/gui.js --cdp"
   },
   "repository": {
