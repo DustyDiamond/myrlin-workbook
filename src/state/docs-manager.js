@@ -323,20 +323,6 @@ function removeItem(workspaceId, workspaceName, section, index) {
 }
 
 /**
- * Append a rule to a workspace's docs.
- * @param {string} workspaceId
- * @param {string} workspaceName
- * @param {string} text
- */
-function appendRule(workspaceId, workspaceName, text) {
-  const docs = readOrCreate(workspaceId, workspaceName);
-  docs.rules = docs.rules || [];
-  docs.rules.push({ text });
-  const raw = buildMarkdown(workspaceName || 'Untitled', docs.notes, docs.goals, docs.tasks, docs.roadmap || [], docs.rules);
-  writeDocs(workspaceId, raw);
-}
-
-/**
  * Append a roadmap item to a workspace's docs.
  * @param {string} workspaceId
  * @param {string} workspaceName
