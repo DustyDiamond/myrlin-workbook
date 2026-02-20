@@ -13,8 +13,10 @@
  *   PORT=3456                 Override the default port
  */
 
+const fs = require('fs');
+const https = require('https');
 const { getStore } = require('./state/store');
-const { startServer, getPtyManager } = require('./web/server');
+const { startServer, getPtyManager, app } = require('./web/server');
 const { backupFrontend } = require('./web/backup');
 
 // ─── Initialize Store ──────────────────────────────────────
@@ -90,9 +92,24 @@ if (process.argv.includes('--demo')) {
 
 const port = parseInt(process.env.PORT, 10) || 3456;
 const host = process.env.CWM_HOST || '127.0.0.1';
-const server = startServer(port, host);
+const sslCert = process.env.CWM_SSL_CERT;
+const sslKey = process.env.CWM_SSL_KEY;
+const sslCa = process.env.CWM_SSL_CA;
 
-console.log(`CWM GUI running at http://${host}:${port}`);
+let server;
+if (sslCert && sslKey) {
+  const sslOptions = {
+    cert: fs.readFileSync(sslCert),
+    key: fs.readFileSync(sslKey),
+  };
+  if (sslCa) sslOptions.ca = fs.readFileSync(sslCa);
+  const httpsServer = https.createServer(sslOptions, app);
+  server = startServer(port, host, httpsServer);
+  console.log(`CWM GUI running at https://${host}:${port}`);
+} else {
+  server = startServer(port, host);
+  console.log(`CWM GUI running at http://${host}:${port}`);
+}
 console.log('Press Ctrl+C to stop.');
 
 // Snapshot frontend files as "last known good" on successful start

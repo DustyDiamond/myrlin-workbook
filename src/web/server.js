@@ -4934,13 +4934,20 @@ app.get('/api/browse', requireAuth, (req, res) => {
 // Reference to PTY manager for cleanup on shutdown
 let _ptyManager = null;
 
-function startServer(port = 3456, host = '127.0.0.1') {
+function startServer(port = 3456, host = '127.0.0.1', externalServer = null) {
   // Wire store events to SSE before accepting connections
   attachStoreEvents();
 
-  const server = app.listen(port, host, () => {
-    // Server is ready - caller handles the log message
-  });
+  let server;
+  if (externalServer) {
+    // Use a pre-created server (e.g. HTTPS) — just start listening
+    externalServer.listen(port, host);
+    server = externalServer;
+  } else {
+    server = app.listen(port, host, () => {
+      // Server is ready - caller handles the log message
+    });
+  }
 
   // Keep-alive for SSE connections
   server.keepAliveTimeout = 120000;
