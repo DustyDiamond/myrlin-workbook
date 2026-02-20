@@ -7,8 +7,10 @@ node_modules/
 # Uploaded images (per-session image attachments)
 /uploads/
 
-# Claude Code local settings (permissions, project-specific config)
+# Claude Code (local development only)
+CLAUDE.md
 .claude/
+.context/
 
 # Environment and secrets
 .env
