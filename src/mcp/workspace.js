@@ -357,13 +357,13 @@ const TOOLS = [
   {
     name: 'list_features',
     description:
-      'List kanban features for a workspace. Returns feature ID, name, description, status (backlog, planned, in-progress, review, done), priority, linked session IDs, and structured spec fields (filesToModify, filesToCreate, contextFiles, acceptanceCriteria, dependsOn, complexity, wave, specDocument, reviewNotes, attempts, maxRetries).',
+      'List kanban features. If workspaceId is provided, returns features for that workspace. If omitted, returns ALL features across all workspaces (global view) with workspaceName enriched on each feature.',
     inputSchema: {
       type: 'object',
       properties: {
         workspaceId: {
           type: 'string',
-          description: 'Workspace ID. Omit to use the active workspace.',
+          description: 'Workspace ID. Omit to get all features globally.',
         },
       },
       additionalProperties: false,
@@ -649,8 +649,12 @@ async function handleRemoveDocItem(args) {
 }
 
 async function handleListFeatures(args) {
-  const id = await resolveWorkspaceId(args.workspaceId);
-  const data = await apiRequest('GET', `/api/workspaces/${encodeURIComponent(id)}/features`);
+  if (args.workspaceId) {
+    const data = await apiRequest('GET', `/api/workspaces/${encodeURIComponent(args.workspaceId)}/features`);
+    return ok(data);
+  }
+  // No workspaceId — return global feature list
+  const data = await apiRequest('GET', '/api/features');
   return ok(data);
 }
 

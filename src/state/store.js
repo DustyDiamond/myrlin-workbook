@@ -780,6 +780,14 @@ class Store extends EventEmitter {
   }
 
   /**
+   * Get all features across all workspaces.
+   * @returns {object[]} Array of all feature objects
+   */
+  getAllFeatures() {
+    return Object.values(this._state.features);
+  }
+
+  /**
    * Update a feature's fields (status, description, priority, etc.).
    * @param {string} id - Feature ID
    * @param {object} updates - Partial feature fields

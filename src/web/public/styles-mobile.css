@@ -29,16 +29,6 @@
     min-height: 44px;
   }
 
-  .docs-add-btn {
-    width: 44px;
-    height: 44px;
-    font-size: 20px;
-  }
-
-  .docs-checkbox {
-    padding: 10px;
-  }
-
   .view-tab {
     min-height: 44px;
     padding: 10px 12px;
@@ -52,13 +42,6 @@
   /* Hover-only elements → always visible on mobile */
   .workspace-actions {
     opacity: 1 !important;
-  }
-
-  .docs-item-delete {
-    opacity: 0.6 !important;
-    min-width: 44px;
-    min-height: 44px;
-    padding: 8px;
   }
 
   /* Prevent iOS zoom on input focus (requires ≥16px) */
@@ -78,7 +61,6 @@
   /* Smooth momentum scrolling on iOS */
   .sidebar-list,
   .session-list,
-  .docs-structured,
   .logs-container,
   .action-sheet {
     -webkit-overflow-scrolling: touch;
@@ -220,29 +202,6 @@
   /* Make room for bottom tab bar */
   .app-body {
     padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
-  }
-
-  /* Session detail slides in from the right */
-  .session-detail-panel {
-    position: fixed;
-    top: var(--header-height);
-    right: 0;
-    bottom: calc(56px + env(safe-area-inset-bottom, 0px));
-    left: 0;
-    z-index: 15;
-    background: var(--bg-primary);
-    transform: translateX(100%);
-    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-    overflow-y: auto;
-  }
-
-  .session-detail-panel.mobile-visible {
-    transform: translateX(0);
-  }
-
-  /* Never hide the session list on mobile - detail overlays it */
-  .session-list-panel.detail-active {
-    display: block !important;
   }
 
   /* Toast above bottom tab bar */
@@ -803,12 +762,6 @@
     padding: 14px 12px !important;
   }
 
-  /* Docs raw editor full height + no zoom */
-  .docs-raw-editor {
-    font-size: 16px !important;
-    min-height: 200px;
-  }
-
   /* Workspace items - larger touch target */
   .workspace-item {
     min-height: 44px;
@@ -863,29 +816,6 @@
     flex-shrink: 0;
   }
 
-  /* Detail panel scrollable */
-  .session-detail-panel {
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  /* Detail section padding */
-  .detail-section {
-    padding: 12px 16px;
-  }
-
-  /* Better touch for detail buttons */
-  .detail-actions .btn {
-    min-height: 44px;
-    padding: 10px 16px;
-  }
-
-  /* Docs panel scrollable */
-  .docs-panel {
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
   /* Login form mobile */
   .login-card {
     margin: 16px;
@@ -899,5 +829,29 @@
   .login-card .btn {
     min-height: 48px;
     font-size: 15px;
+  }
+
+  /* Board panel: horizontal scroll for kanban columns */
+  .board-columns {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x mandatory;
+    gap: 12px;
+    padding-bottom: 8px;
+  }
+
+  .board-column {
+    min-width: 260px;
+    scroll-snap-align: start;
+  }
+
+  /* Board toolbar: stack filter + button */
+  .board-toolbar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .board-filter select {
+    font-size: 16px !important;
   }
 }

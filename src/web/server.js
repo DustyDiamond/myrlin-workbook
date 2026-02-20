@@ -3397,6 +3397,20 @@ app.post('/api/sessions/:id/summarize', requireAuth, (req, res) => {
 // ──────────────────────────────────────────────────────────
 
 /**
+ * GET /api/features
+ * Returns all features across all workspaces, enriched with workspace names.
+ */
+app.get('/api/features', requireAuth, (req, res) => {
+  const store = getStore();
+  const features = store.getAllFeatures();
+  const enriched = features.map(f => {
+    const ws = store.getWorkspace(f.workspaceId);
+    return { ...f, workspaceName: ws ? ws.name : 'Unknown' };
+  });
+  res.json({ features: enriched });
+});
+
+/**
  * GET /api/workspaces/:id/features
  * Returns all features for a workspace.
  */

@@ -100,14 +100,11 @@ class CWMApp {
       groups: [],
       projects: [],
       activeWorkspace: null,
-      selectedSession: null,
-      viewMode: localStorage.getItem('cwm_viewMode') || 'terminal',       // workspace | all | recent | terminal
+      viewMode: localStorage.getItem('cwm_viewMode') || 'terminal',       // terminal | board | resources
       stats: { totalWorkspaces: 0, totalSessions: 0, runningSessions: 0, activeWorkspace: null },
       notifications: [],
       sidebarOpen: false,
       projectsCollapsed: false,
-      docs: null,
-      docsRawMode: false,
       hiddenSessions: new Set(JSON.parse(localStorage.getItem('cwm_hiddenSessions') || '[]')),
       hiddenProjectSessions: new Set(JSON.parse(localStorage.getItem('cwm_hiddenProjectSessions') || '[]')),
       hiddenProjects: new Set(JSON.parse(localStorage.getItem('cwm_hiddenProjects') || '[]')),
@@ -226,39 +223,11 @@ class CWMApp {
       themeDropdown: document.getElementById('theme-dropdown'),
       scaleDownBtn: document.getElementById('scale-down-btn'),
       scaleUpBtn: document.getElementById('scale-up-btn'),
+      statCost: document.getElementById('stat-cost'),
 
-      // Sessions
-      sessionPanelTitle: document.getElementById('session-panel-title'),
-      sessionList: document.getElementById('session-list'),
-      sessionEmpty: document.getElementById('session-empty'),
-      createSessionBtn: document.getElementById('create-session-btn'),
-      sessionListPanel: document.getElementById('session-list-panel'),
-
-      // Detail
-      detailPanel: document.getElementById('session-detail-panel'),
-      detailBackBtn: document.getElementById('detail-back-btn'),
-      detailStatusDot: document.getElementById('detail-status-dot'),
-      detailTitle: document.getElementById('detail-title'),
-      detailRenameBtn: document.getElementById('detail-rename-btn'),
-      detailDeleteBtn: document.getElementById('detail-delete-btn'),
-      detailStatusBadge: document.getElementById('detail-status-badge'),
-      detailWorkspace: document.getElementById('detail-workspace'),
-      detailDir: document.getElementById('detail-dir'),
-      detailTopic: document.getElementById('detail-topic'),
-      detailCommand: document.getElementById('detail-command'),
-      detailPid: document.getElementById('detail-pid'),
-      detailPorts: document.getElementById('detail-ports'),
-      detailBranch: document.getElementById('detail-branch'),
-      detailCreated: document.getElementById('detail-created'),
-      detailLastActive: document.getElementById('detail-last-active'),
-      detailCost: document.getElementById('detail-cost'),
-      detailCostTotal: document.getElementById('detail-cost-total'),
-      detailCostBreakdown: document.getElementById('detail-cost-breakdown'),
-      detailTokenBar: document.getElementById('detail-token-bar'),
-      detailStartBtn: document.getElementById('detail-start-btn'),
-      detailStopBtn: document.getElementById('detail-stop-btn'),
-      detailRestartBtn: document.getElementById('detail-restart-btn'),
-      detailLogs: document.getElementById('detail-logs'),
+      // Board panel
+      boardPanel: document.getElementById('board-panel'),
+      boardFilter: document.getElementById('board-filter'),
 
       // Quick Switcher
       qsOverlay: document.getElementById('quick-switcher-overlay'),
@@ -309,64 +278,14 @@ class CWMApp {
       sidebarResizeHandle: document.getElementById('sidebar-resize-handle'),
       sidebarCollapseBtn: document.getElementById('sidebar-collapse-btn'),
 
-      // Docs panel
-      docsPanel: document.getElementById('docs-panel'),
-      docsWorkspaceName: document.getElementById('docs-workspace-name'),
-      docsToggleRaw: document.getElementById('docs-toggle-raw'),
-      docsSaveBtn: document.getElementById('docs-save-btn'),
-      docsStructured: document.getElementById('docs-structured'),
-      docsRaw: document.getElementById('docs-raw'),
-      docsRawEditor: document.getElementById('docs-raw-editor'),
-      docsNotesList: document.getElementById('docs-notes-list'),
-      docsGoalsList: document.getElementById('docs-goals-list'),
-      docsTasksList: document.getElementById('docs-tasks-list'),
-      docsNotesCount: document.getElementById('docs-notes-count'),
-      docsGoalsCount: document.getElementById('docs-goals-count'),
-      docsTasksCount: document.getElementById('docs-tasks-count'),
-      docsRoadmapList: document.getElementById('docs-roadmap-list'),
-      docsRoadmapCount: document.getElementById('docs-roadmap-count'),
-      docsRulesList: document.getElementById('docs-rules-list'),
-      docsRulesCount: document.getElementById('docs-rules-count'),
-      docsAiInsights: document.getElementById('docs-ai-insights'),
-      docsAiRefresh: document.getElementById('docs-ai-refresh'),
-
-      // Feature Board
-      featureBoard: document.getElementById('feature-board'),
-      boardColumns: document.getElementById('board-columns'),
-      boardAddBtn: document.getElementById('board-add-btn'),
-
       // Terminal Tab Groups
       terminalGroupsBar: document.getElementById('terminal-groups-bar'),
       terminalGroupsTabs: document.getElementById('terminal-groups-tabs'),
-
-      // Notes Editor
-      notesEditorOverlay: document.getElementById('notes-editor-overlay'),
-      notesEditorTitle: document.getElementById('notes-editor-title'),
-      notesEditorTextarea: document.getElementById('notes-editor-textarea'),
-      notesEditorClose: document.getElementById('notes-editor-close'),
-      notesEditorCancel: document.getElementById('notes-editor-cancel'),
-      notesEditorSave: document.getElementById('notes-editor-save'),
-
-      // Costs
-      costsPanel: document.getElementById('costs-panel'),
-      costsBody: document.getElementById('costs-body'),
-      costsRefreshBtn: document.getElementById('costs-refresh-btn'),
-      costsPeriodSelector: document.getElementById('costs-period-selector'),
 
       // Resources
       resourcesPanel: document.getElementById('resources-panel'),
       resourcesBody: document.getElementById('resources-body'),
       resourcesRefreshBtn: document.getElementById('resources-refresh-btn'),
-
-      // Subagent tracking
-      detailSubagents: document.getElementById('detail-subagents'),
-      detailSubagentCount: document.getElementById('detail-subagent-count'),
-      detailSubagentList: document.getElementById('detail-subagent-list'),
-
-      // Workspace Analytics
-      detailAnalytics: document.getElementById('detail-analytics'),
-      analyticsGrid: document.getElementById('analytics-grid'),
-      analyticsTopSessions: document.getElementById('analytics-top-sessions'),
 
       // Update
       updateBtn: document.getElementById('update-btn'),
@@ -525,26 +444,8 @@ class CWMApp {
     this.els.createWorkspaceBtn.addEventListener('click', () => this.createWorkspace());
 
     // Session
-    this.els.createSessionBtn.addEventListener('click', () => this.createSession());
-    document.getElementById('discover-btn').addEventListener('click', () => this.discoverSessions());
-
-    // Detail actions
-    this.els.detailBackBtn.addEventListener('click', () => this.deselectSession());
-    this.els.detailRenameBtn.addEventListener('click', () => {
-      if (this.state.selectedSession) this.renameSession(this.state.selectedSession.id);
-    });
-    this.els.detailDeleteBtn.addEventListener('click', () => {
-      if (this.state.selectedSession) this.deleteSession(this.state.selectedSession.id);
-    });
-    this.els.detailStartBtn.addEventListener('click', () => {
-      if (this.state.selectedSession) this.startSession(this.state.selectedSession.id);
-    });
-    this.els.detailStopBtn.addEventListener('click', () => {
-      if (this.state.selectedSession) this.stopSession(this.state.selectedSession.id);
-    });
-    this.els.detailRestartBtn.addEventListener('click', () => {
-      if (this.state.selectedSession) this.restartSession(this.state.selectedSession.id);
-    });
+    document.getElementById('create-session-btn')?.addEventListener('click', () => this.createSession());
+    document.getElementById('discover-btn')?.addEventListener('click', () => this.discoverSessions());
 
     // Context Menu - dismiss on click outside or Escape
     document.addEventListener('click', (e) => {
@@ -592,68 +493,6 @@ class CWMApp {
     // Quota widget toggle
     if (this.els.quotaWidgetToggle) {
       this.els.quotaWidgetToggle.addEventListener('click', () => this.toggleQuotaWidget());
-    }
-
-    // Docs panel
-    if (this.els.docsToggleRaw) {
-      this.els.docsToggleRaw.addEventListener('click', () => this.toggleDocsRawMode());
-    }
-    if (this.els.docsSaveBtn) {
-      this.els.docsSaveBtn.addEventListener('click', () => this.saveDocsRaw());
-    }
-    document.querySelectorAll('.docs-add-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.addDocsItem(btn.dataset.section);
-      });
-    });
-    document.querySelectorAll('.docs-section-header').forEach(header => {
-      header.addEventListener('click', (e) => {
-        if (e.target.closest('.docs-add-btn')) return;
-        const body = header.nextElementSibling;
-        const chevron = header.querySelector('.docs-section-chevron');
-        if (body) body.hidden = !body.hidden;
-        if (chevron) chevron.classList.toggle('open');
-      });
-    });
-
-    // Docs/Board tab switching - use event delegation on parent to avoid listener leaks
-    // (Adding listeners to each .docs-tab individually would accumulate if tabs are ever re-rendered)
-    const docsTabBar = document.querySelector('.docs-tabs');
-    if (docsTabBar) {
-      docsTabBar.addEventListener('click', (e) => {
-        const tab = e.target.closest('.docs-tab');
-        if (!tab) return;
-        document.querySelectorAll('.docs-tab').forEach(t => t.classList.remove('active'));
-        tab.classList.add('active');
-        const view = tab.dataset.tab;
-        // Toggle docs structured/raw views vs board
-        if (this.els.docsStructured) this.els.docsStructured.hidden = (view === 'board');
-        if (this.els.docsRaw) this.els.docsRaw.hidden = true; // always hide raw when switching tabs
-        if (this.els.featureBoard) this.els.featureBoard.hidden = (view !== 'board');
-        // Hide docs-specific header buttons when on board view
-        if (this.els.docsToggleRaw) this.els.docsToggleRaw.hidden = (view === 'board');
-        if (this.els.docsSaveBtn) this.els.docsSaveBtn.hidden = true;
-        if (view === 'board') this.loadFeatureBoard();
-      });
-    }
-
-    // Board add button
-    if (this.els.boardAddBtn) {
-      this.els.boardAddBtn.addEventListener('click', () => this.createFeature());
-    }
-
-    // Cost dashboard controls
-    if (this.els.costsRefreshBtn) {
-      this.els.costsRefreshBtn.addEventListener('click', () => this.loadCosts());
-    }
-    if (this.els.costsPeriodSelector) {
-      this.els.costsPeriodSelector.addEventListener('click', (e) => {
-        const btn = e.target.closest('.costs-period-btn');
-        if (btn && btn.dataset.period) {
-          this.loadCosts(btn.dataset.period);
-        }
-      });
     }
 
     // Resources refresh
@@ -982,12 +821,13 @@ class CWMApp {
         this.initTerminalGroups();
         // Initialize mobile swipe gestures for pane switching
         this.initTerminalPaneSwipe();
-        this.initNotesEditor();
-        this.initAIInsights();
+        this.boardView = new BoardView(this);
         await this.loadAll();
         this.connectSSE();
         this.startConflictChecks();
         this.checkForUpdates();
+        this.loadCostBadge();
+        this._costBadgeInterval = setInterval(() => this.loadCostBadge(), 5 * 60 * 1000);
       } else {
         this.state.token = null;
         localStorage.removeItem('cwm_token');
@@ -1070,12 +910,13 @@ class CWMApp {
         this.initTerminalGroups();
         // Initialize mobile swipe gestures for pane switching
         this.initTerminalPaneSwipe();
-        this.initNotesEditor();
-        this.initAIInsights();
+        this.boardView = new BoardView(this);
         await this.loadAll();
         this.connectSSE();
         this.startConflictChecks();
         this.checkForUpdates();
+        this.loadCostBadge();
+        this._costBadgeInterval = setInterval(() => this.loadCostBadge(), 5 * 60 * 1000);
       } else {
         this.els.loginError.textContent = 'Invalid password. Please try again.';
       }
@@ -1140,7 +981,7 @@ class CWMApp {
     // Restore persisted state
     const savedWorkspaceId = localStorage.getItem('cwm_activeWorkspace');
     const savedViewMode = localStorage.getItem('cwm_viewMode');
-    if (savedViewMode && ['workspace', 'all', 'costs', 'recent', 'terminal', 'docs', 'resources'].includes(savedViewMode)) {
+    if (savedViewMode && ['terminal', 'board', 'resources'].includes(savedViewMode)) {
       this.state.viewMode = savedViewMode;
     }
     // Always apply the current view mode (handles default 'terminal' for new users)
@@ -1169,6 +1010,9 @@ class CWMApp {
 
     // Start quota usage polling (non-blocking, 60s interval)
     this.startQuotaPolling();
+
+    // Start cost badge polling
+    this.loadCostBadge();
   }
 
   async loadWorkspaces() {
@@ -1199,45 +1043,11 @@ class CWMApp {
 
   async loadSessions() {
     try {
-      const mode = this.state.viewMode;
-
-      // Always fetch ALL sessions for sidebar workspace rendering
+      // Always fetch ALL sessions
       const allData = await this.api('GET', '/api/sessions?mode=all');
       this.state.allSessions = allData.sessions || [];
+      this.state.sessions = this.state.allSessions;
 
-      // If workspace mode but no workspace active, show empty
-      if (mode === 'workspace' && !this.state.activeWorkspace) {
-        this.state.sessions = [];
-        this.renderSessions();
-        this.renderWorkspaces();
-        return;
-      }
-
-      // Fetch mode-specific sessions for the main session list panel
-      if (mode === 'workspace' || mode === 'recent') {
-        let path = `/api/sessions?mode=${mode}`;
-        if (mode === 'workspace' && this.state.activeWorkspace) {
-          path += `&workspaceId=${this.state.activeWorkspace.id}`;
-        }
-        const data = await this.api('GET', path);
-        this.state.sessions = data.sessions || [];
-      } else {
-        // 'all' mode - reuse the full list we already fetched
-        this.state.sessions = this.state.allSessions;
-      }
-
-      // Clear stale selectedSession if it no longer exists in the loaded session list
-      // (e.g. deleted by another client or via SSE session:deleted event)
-      if (this.state.selectedSession) {
-        const stillExists = this.state.sessions.some(s => s.id === this.state.selectedSession.id)
-          || (this.state.allSessions && this.state.allSessions.some(s => s.id === this.state.selectedSession.id));
-        if (!stillExists) {
-          this.state.selectedSession = null;
-          this.renderSessionDetail();
-        }
-      }
-
-      this.renderSessions();
       // Re-render workspace accordion to update session sub-items
       this.renderWorkspaces();
     } catch (err) {
@@ -1405,64 +1215,7 @@ class CWMApp {
      SESSIONS
      ═══════════════════════════════════════════════════════════ */
 
-  async selectSession(id) {
-    const session = this.state.sessions.find(s => s.id === id)
-      || (this.state.allSessions && this.state.allSessions.find(s => s.id === id))
-      || null;
-    this.state.selectedSession = session;
 
-    // If in a view mode that hides the detail panel, switch to a compatible mode
-    const hiddenModes = ['terminal', 'docs', 'resources', 'costs'];
-    if (session && hiddenModes.includes(this.state.viewMode)) {
-      // Switch to workspace view if a workspace is active, otherwise 'recent'
-      const targetMode = this.state.activeWorkspace ? 'workspace' : 'recent';
-      this.setViewMode(targetMode);
-    }
-
-    this.renderSessionDetail();
-    this.renderSessions(); // update active state
-
-    // Mobile: slide detail panel in from right
-    if (this.isMobile) {
-      this.els.detailPanel.hidden = false;
-      requestAnimationFrame(() => {
-        this.els.detailPanel.classList.add('mobile-visible');
-      });
-    } else if (window.innerWidth <= 768) {
-      this.els.sessionListPanel.classList.add('detail-active');
-    }
-
-    // If session is stopped, offer to start it
-    if (session && (!session.status || session.status === 'stopped')) {
-      const confirmed = await this.showConfirmModal({
-        title: 'Start Session?',
-        message: `<strong>${this.escapeHtml(session.name)}</strong> is not running. Would you like to start it?`,
-        confirmText: 'Start',
-        confirmClass: 'btn-primary',
-      });
-      if (confirmed) {
-        await this.startSession(id);
-      }
-    }
-  }
-
-  deselectSession() {
-    this.state.selectedSession = null;
-    // Mobile: slide detail panel out
-    if (this.isMobile) {
-      this.els.detailPanel.classList.remove('mobile-visible');
-      // Hide after transition completes
-      setTimeout(() => {
-        if (!this.els.detailPanel.classList.contains('mobile-visible')) {
-          this.els.detailPanel.hidden = true;
-        }
-      }, 300);
-    } else {
-      this.els.detailPanel.hidden = true;
-    }
-    this.els.sessionListPanel.classList.remove('detail-active');
-    this.renderSessions();
-  }
 
   async createSession() {
     // Load templates for quick-launch chips
@@ -3136,10 +2889,10 @@ class CWMApp {
       this.els.modalOverlay.hidden = false;
 
       // Select all / none
-      document.getElementById('discover-select-all').addEventListener('click', () => {
+      document.getElementById('discover-select-all')?.addEventListener('click', () => {
         this.els.modalBody.querySelectorAll('.discover-cb:not(:disabled)').forEach(cb => cb.checked = true);
       });
-      document.getElementById('discover-select-none').addEventListener('click', () => {
+      document.getElementById('discover-select-none')?.addEventListener('click', () => {
         this.els.modalBody.querySelectorAll('.discover-cb').forEach(cb => cb.checked = false);
       });
 
@@ -3206,8 +2959,11 @@ class CWMApp {
      ═══════════════════════════════════════════════════════════ */
 
   setViewMode(mode) {
-    // Migrate legacy "all" mode to "workspace" for existing users
-    if (mode === 'all') mode = 'workspace';
+    // Normalize legacy modes to valid 3-tab modes
+    if (mode === 'all' || mode === 'workspace' || mode === 'recent' ||
+        mode === 'docs' || mode === 'costs' || mode === 'pipeline') {
+      mode = 'terminal';
+    }
 
     this.state.viewMode = mode;
     localStorage.setItem('cwm_viewMode', mode);
@@ -3232,22 +2988,25 @@ class CWMApp {
       this._resourcesInterval = null;
     }
 
-    // Toggle terminal grid vs session panels vs docs vs resources vs costs
+    // Toggle panels: terminal | board | resources
     const isTerminal = mode === 'terminal';
-    const isDocs = mode === 'docs';
+    const isBoard = mode === 'board';
     const isResources = mode === 'resources';
-    const isCosts = mode === 'costs';
-    this.els.sessionListPanel.hidden = isTerminal || isDocs || isResources || isCosts;
-    this.els.detailPanel.hidden = isTerminal || isDocs || isResources || isCosts || !this.state.selectedSession;
+
     if (this.els.terminalGrid) {
       this.els.terminalGrid.hidden = !isTerminal;
     }
     if (this.els.terminalGroupsBar) {
       this.els.terminalGroupsBar.hidden = !isTerminal;
     }
-    // On mobile: lock page scroll when terminal is visible, unlock otherwise.
-    // Terminal uses xterm.js internal scrolling; page scroll causes conflicts.
-    // Applied to both <html> and <body> for cross-browser iOS Safari support.
+    if (this.els.boardPanel) {
+      this.els.boardPanel.hidden = !isBoard;
+    }
+    if (this.els.resourcesPanel) {
+      this.els.resourcesPanel.hidden = !isResources;
+    }
+
+    // On mobile: lock page scroll when terminal is visible
     if (isTerminal) {
       document.documentElement.classList.add('terminal-active');
       document.body.classList.add('terminal-active');
@@ -3255,41 +3014,21 @@ class CWMApp {
       document.documentElement.classList.remove('terminal-active');
       document.body.classList.remove('terminal-active');
     }
-    if (this.els.docsPanel) {
-      this.els.docsPanel.hidden = !isDocs;
-    }
-    if (this.els.resourcesPanel) {
-      this.els.resourcesPanel.hidden = !isResources;
-    }
-    if (this.els.costsPanel) {
-      this.els.costsPanel.hidden = !isCosts;
-    }
 
-    if (isDocs) {
-      this.loadDocs();
+    if (isBoard) {
+      if (this.boardView) this.boardView.loadFeatures();
     } else if (isResources) {
       this.loadResources();
-    } else if (isCosts) {
-      this.loadCosts();
     } else if (isTerminal) {
       if (this._tabGroups) this.renderTerminalGroupTabs();
-      // Update mobile terminal tab strip when switching to terminal view
       if (this.isMobile) {
         this.updateTerminalTabs();
       }
-      // Refit all terminal panes after view switch (viewport size may differ)
       requestAnimationFrame(() => {
         this.terminalPanes.forEach(tp => {
           if (tp) tp.safeFit();
         });
       });
-    } else {
-      // Update panel title
-      const titles = { workspace: 'Sessions', recent: 'Recent Sessions' };
-      this.els.sessionPanelTitle.textContent = titles[mode] || 'Sessions';
-
-      // Load sessions for new mode
-      this.loadSessions();
     }
   }
 
@@ -3641,6 +3380,30 @@ class CWMApp {
   /* ═══════════════════════════════════════════════════════════
      MODALS
      ═══════════════════════════════════════════════════════════ */
+
+  /**
+   * Generic modal with raw HTML body. Returns true/false.
+   */
+  showModal({ title, body, confirmText = 'Confirm', confirmClass = 'btn-primary' }) {
+    return new Promise((resolve) => {
+      this.modalResolve = resolve;
+      this.els.modalTitle.textContent = title;
+      this.els.modalBody.innerHTML = body;
+      this.els.modalConfirmBtn.textContent = confirmText;
+      this.els.modalConfirmBtn.className = `btn ${confirmClass}`;
+      this.els.modalCancelBtn.textContent = 'Cancel';
+      this.els.modalConfirmBtn.disabled = false;
+
+      const confirmHandler = () => {
+        this.els.modalConfirmBtn.disabled = true;
+        this.els.modalConfirmBtn.removeEventListener('click', confirmHandler);
+        this.closeModal(true);
+      };
+      this.els.modalConfirmBtn.addEventListener('click', confirmHandler);
+
+      this.els.modalOverlay.hidden = false;
+    });
+  }
 
   showConfirmModal({ title, message, confirmText = 'Confirm', confirmClass = 'btn-primary' }) {
     return new Promise((resolve) => {
@@ -4178,13 +3941,6 @@ class CWMApp {
         if (data.stats) {
           this.state.stats = data.stats;
           this.renderStats();
-        }
-        break;
-      case 'docs:updated':
-        // Reload docs if we're viewing docs for the updated workspace
-        if (this.state.viewMode === 'docs' && this.state.activeWorkspace &&
-            data.data && data.data.workspaceId === this.state.activeWorkspace.id) {
-          this.loadDocs();
         }
         break;
       case 'tunnel:opened':
@@ -4748,9 +4504,9 @@ class CWMApp {
           }
         }).catch(err => this.showToast(err.message, 'error'));
       }},
-      { label: 'View Docs', icon: '&#128196;', action: () => {
+      { label: 'View Board', icon: '&#9776;', action: () => {
         this.selectWorkspace(workspaceId);
-        this.setViewMode('docs');
+        this.setViewMode('board');
       }},
       { label: 'Add Session', icon: '&#43;', action: () => {
         this.selectWorkspace(workspaceId);
@@ -4925,10 +4681,6 @@ class CWMApp {
       const data = await this.api('POST', `/api/sessions/${sessionId}/summarize`);
       if (data && data.summary) {
         this.showToast('Summary added to workspace docs', 'success');
-        // Refresh docs if currently in docs view
-        if (this.state.viewMode === 'docs') {
-          this.loadDocs();
-        }
       } else {
         this.showToast('No summary data available', 'info');
       }
@@ -5002,16 +4754,17 @@ class CWMApp {
 
   renderSessions() {
     const list = this.els.sessionList;
+    if (!list) return;
     const sessions = this.state.sessions.filter(s => this.state.showHidden || !this.state.hiddenSessions.has(s.id));
     const empty = this.els.sessionEmpty;
 
     if (sessions.length === 0) {
       list.innerHTML = '';
-      empty.hidden = false;
+      if (empty) empty.hidden = false;
       return;
     }
 
-    empty.hidden = true;
+    if (empty) empty.hidden = true;
 
     list.innerHTML = sessions.map(s => {
       const isSelected = this.state.selectedSession && this.state.selectedSession.id === s.id;
@@ -5085,9 +4838,9 @@ class CWMApp {
   }
 
   renderSessionDetail() {
+    if (!this.els.detailPanel) return;
     const session = this.state.selectedSession;
-    // Never show detail panel in terminal, docs, or resources view
-    if (!session || this.state.viewMode === 'terminal' || this.state.viewMode === 'docs' || this.state.viewMode === 'resources') {
+    if (!session) {
       this.els.detailPanel.hidden = true;
       return;
     }
@@ -5777,19 +5530,21 @@ class CWMApp {
      ═══════════════════════════════════════════════════════════ */
 
   initDragAndDrop() {
-    // Session items: make draggable
-    this.els.sessionList.addEventListener('dragstart', (e) => {
-      const item = e.target.closest('.session-item');
-      if (!item) return;
-      console.log('[DnD] Drag started: session-item', item.dataset.id);
-      e.dataTransfer.setData('cwm/session', item.dataset.id);
-      e.dataTransfer.effectAllowed = 'move';
-      item.classList.add('dragging');
-    });
-    this.els.sessionList.addEventListener('dragend', (e) => {
-      const item = e.target.closest('.session-item');
-      if (item) item.classList.remove('dragging');
-    });
+    // Session items: make draggable (if session list panel exists)
+    if (this.els.sessionList) {
+      this.els.sessionList.addEventListener('dragstart', (e) => {
+        const item = e.target.closest('.session-item');
+        if (!item) return;
+        console.log('[DnD] Drag started: session-item', item.dataset.id);
+        e.dataTransfer.setData('cwm/session', item.dataset.id);
+        e.dataTransfer.effectAllowed = 'move';
+        item.classList.add('dragging');
+      });
+      this.els.sessionList.addEventListener('dragend', (e) => {
+        const item = e.target.closest('.session-item');
+        if (item) item.classList.remove('dragging');
+      });
+    }
 
     // Workspace items: accept project + project-session drops to create sessions
     this.els.workspaceList.addEventListener('dragover', (e) => {
@@ -7328,217 +7083,6 @@ class CWMApp {
   }
 
 
-  /* ═══════════════════════════════════════════════════════════
-     WORKSPACE DOCUMENTATION
-     ═══════════════════════════════════════════════════════════ */
-
-  async loadDocs() {
-    if (!this.state.activeWorkspace) {
-      this.state.docs = null;
-      this.renderDocs();
-      return;
-    }
-    try {
-      const data = await this.api('GET', `/api/workspaces/${this.state.activeWorkspace.id}/docs`);
-      this.state.docs = data;
-      this.renderDocs();
-    } catch (err) {
-      this.showToast('Failed to load documentation', 'error');
-    }
-  }
-
-  renderDocs() {
-    const docs = this.state.docs;
-    const ws = this.state.activeWorkspace;
-
-    // Update header
-    if (this.els.docsWorkspaceName) {
-      this.els.docsWorkspaceName.textContent = ws ? ws.name : 'No workspace selected';
-    }
-
-    if (!docs || docs.raw === null) {
-      // Empty state
-      if (this.els.docsNotesList) this.els.docsNotesList.innerHTML = '<div class="docs-empty">No notes yet. Click + to add one.</div>';
-      if (this.els.docsGoalsList) this.els.docsGoalsList.innerHTML = '<div class="docs-empty">No goals yet. Click + to add one.</div>';
-      if (this.els.docsTasksList) this.els.docsTasksList.innerHTML = '<div class="docs-empty">No tasks yet. Click + to add one.</div>';
-      if (this.els.docsRoadmapList) this.els.docsRoadmapList.innerHTML = '<div class="docs-empty">No milestones yet. Click + to add one.</div>';
-      if (this.els.docsRulesList) this.els.docsRulesList.innerHTML = '<div class="docs-empty">No rules yet. Click + to add one.</div>';
-      if (this.els.docsNotesCount) this.els.docsNotesCount.textContent = '0';
-      if (this.els.docsGoalsCount) this.els.docsGoalsCount.textContent = '0';
-      if (this.els.docsTasksCount) this.els.docsTasksCount.textContent = '0';
-      if (this.els.docsRoadmapCount) this.els.docsRoadmapCount.textContent = '0';
-      if (this.els.docsRulesCount) this.els.docsRulesCount.textContent = '0';
-      if (this.els.docsRawEditor) this.els.docsRawEditor.value = '';
-      return;
-    }
-
-    // Counts
-    if (this.els.docsNotesCount) this.els.docsNotesCount.textContent = (docs.notes || []).length;
-    if (this.els.docsGoalsCount) this.els.docsGoalsCount.textContent = (docs.goals || []).length;
-    if (this.els.docsTasksCount) this.els.docsTasksCount.textContent = (docs.tasks || []).length;
-    if (this.els.docsRoadmapCount) this.els.docsRoadmapCount.textContent = (docs.roadmap || []).length;
-    if (this.els.docsRulesCount) this.els.docsRulesCount.textContent = (docs.rules || []).length;
-
-    // Notes
-    if (this.els.docsNotesList) {
-      this.els.docsNotesList.innerHTML = (docs.notes || []).length > 0
-        ? (docs.notes || []).map((n, i) => `
-          <div class="docs-item" data-index="${i}">
-            <span class="docs-note-time">${this.escapeHtml(n.timestamp || '')}</span>
-            <span class="docs-note-text">${this.escapeHtml(n.text)}</span>
-            <button class="docs-item-delete btn btn-ghost btn-icon btn-sm" data-section="notes" data-index="${i}" title="Remove">&times;</button>
-          </div>`).join('')
-        : '<div class="docs-empty">No notes yet. Click + to add one.</div>';
-    }
-
-    // Goals
-    if (this.els.docsGoalsList) {
-      this.els.docsGoalsList.innerHTML = (docs.goals || []).length > 0
-        ? (docs.goals || []).map((g, i) => `
-          <div class="docs-item${g.done ? ' docs-item-done' : ''}" data-index="${i}">
-            <label class="docs-checkbox">
-              <input type="checkbox" ${g.done ? 'checked' : ''} data-section="goals" data-index="${i}">
-            </label>
-            <span class="docs-item-text">${this.escapeHtml(g.text)}</span>
-            <button class="docs-item-delete btn btn-ghost btn-icon btn-sm" data-section="goals" data-index="${i}" title="Remove">&times;</button>
-          </div>`).join('')
-        : '<div class="docs-empty">No goals yet. Click + to add one.</div>';
-    }
-
-    // Tasks
-    if (this.els.docsTasksList) {
-      this.els.docsTasksList.innerHTML = (docs.tasks || []).length > 0
-        ? (docs.tasks || []).map((t, i) => `
-          <div class="docs-item${t.done ? ' docs-item-done' : ''}" data-index="${i}">
-            <label class="docs-checkbox">
-              <input type="checkbox" ${t.done ? 'checked' : ''} data-section="tasks" data-index="${i}">
-            </label>
-            <span class="docs-item-text">${this.escapeHtml(t.text)}</span>
-            <button class="docs-item-delete btn btn-ghost btn-icon btn-sm" data-section="tasks" data-index="${i}" title="Remove">&times;</button>
-          </div>`).join('')
-        : '<div class="docs-empty">No tasks yet. Click + to add one.</div>';
-    }
-
-    // Roadmap
-    if (this.els.docsRoadmapList) {
-      const statusLabel = { planned: 'Planned', active: 'Active', done: 'Done' };
-      const statusClass = { planned: 'roadmap-planned', active: 'roadmap-active', done: 'roadmap-done' };
-      this.els.docsRoadmapList.innerHTML = (docs.roadmap || []).length > 0
-        ? (docs.roadmap || []).map((r, i) => `
-          <div class="docs-item docs-roadmap-item ${statusClass[r.status] || 'roadmap-planned'}" data-index="${i}">
-            <button class="roadmap-status-dot" data-section="roadmap" data-index="${i}" title="Click to cycle: Planned > Active > Done">
-              <span class="roadmap-dot"></span>
-            </button>
-            <span class="docs-item-text">${this.escapeHtml(r.text)}</span>
-            <span class="roadmap-status-label">${statusLabel[r.status] || 'Planned'}</span>
-            <button class="docs-item-delete btn btn-ghost btn-icon btn-sm" data-section="roadmap" data-index="${i}" title="Remove">&times;</button>
-          </div>`).join('')
-        : '<div class="docs-empty">No milestones yet. Click + to add one.</div>';
-    }
-
-    // Rules
-    if (this.els.docsRulesList) {
-      const rules = docs.rules || [];
-      this.els.docsRulesList.innerHTML = rules.length > 0
-        ? rules.map((r, i) => `
-          <div class="docs-item docs-rule-item" data-index="${i}">
-            <span class="docs-rule-icon">&#9888;</span>
-            <span class="docs-item-text">${this.escapeHtml(r.text)}</span>
-            <button class="docs-item-delete btn btn-ghost btn-icon btn-sm" data-section="rules" data-index="${i}" title="Remove">&times;</button>
-          </div>`).join('')
-        : '<div class="docs-empty">No rules yet. Click + to add one.</div>';
-    }
-
-    // Bind checkbox change events
-    if (this.els.docsPanel) {
-      this.els.docsPanel.querySelectorAll('.docs-checkbox input').forEach(cb => {
-        cb.addEventListener('change', () => this.toggleDocsItem(cb.dataset.section, parseInt(cb.dataset.index)));
-      });
-      // Bind delete buttons
-      this.els.docsPanel.querySelectorAll('.docs-item-delete').forEach(btn => {
-        btn.addEventListener('click', () => this.removeDocsItem(btn.dataset.section, parseInt(btn.dataset.index)));
-      });
-
-      // Bind roadmap status dot clicks (cycle planned > active > done)
-      this.els.docsPanel.querySelectorAll('.roadmap-status-dot').forEach(dot => {
-        dot.addEventListener('click', () => this.toggleDocsItem(dot.dataset.section, parseInt(dot.dataset.index)));
-      });
-
-      // Click note text to edit in large editor
-      this.els.docsPanel.querySelectorAll('.docs-note-text, .docs-item-text').forEach(span => {
-        span.style.cursor = 'pointer';
-        span.title = 'Click to edit';
-        span.addEventListener('click', (e) => {
-          const item = e.target.closest('.docs-item');
-          if (!item) return;
-          const index = parseInt(item.dataset.index);
-          // Determine section from parent list
-          const parent = item.closest('[id]');
-          let section = 'notes';
-          if (parent) {
-            if (parent.id.includes('goals')) section = 'goals';
-            else if (parent.id.includes('tasks')) section = 'tasks';
-            else if (parent.id.includes('rules')) section = 'rules';
-          }
-          const text = e.target.textContent;
-          this.showNotesEditor(section, index, text);
-        });
-      });
-    }
-
-    // Raw editor
-    if (this.els.docsRawEditor) {
-      this.els.docsRawEditor.value = docs.raw || '';
-    }
-  }
-
-  async addDocsItem(section) {
-    if (!this.state.activeWorkspace) {
-      this.showToast('Select a workspace first', 'warning');
-      return;
-    }
-    this.showNotesEditor(section);
-  }
-
-  async toggleDocsItem(section, index) {
-    if (!this.state.activeWorkspace) return;
-    try {
-      await this.api('PUT', `/api/workspaces/${this.state.activeWorkspace.id}/docs/${section}/${index}`);
-      await this.loadDocs();
-    } catch (err) {
-      this.showToast(err.message || 'Failed to update item', 'error');
-    }
-  }
-
-  async removeDocsItem(section, index) {
-    if (!this.state.activeWorkspace) return;
-    try {
-      await this.api('DELETE', `/api/workspaces/${this.state.activeWorkspace.id}/docs/${section}/${index}`);
-      await this.loadDocs();
-    } catch (err) {
-      this.showToast(err.message || 'Failed to remove item', 'error');
-    }
-  }
-
-  toggleDocsRawMode() {
-    this.state.docsRawMode = !this.state.docsRawMode;
-    if (this.els.docsStructured) this.els.docsStructured.hidden = this.state.docsRawMode;
-    if (this.els.docsRaw) this.els.docsRaw.hidden = !this.state.docsRawMode;
-    if (this.els.docsToggleRaw) this.els.docsToggleRaw.classList.toggle('active', this.state.docsRawMode);
-    if (this.els.docsSaveBtn) this.els.docsSaveBtn.hidden = !this.state.docsRawMode;
-  }
-
-  async saveDocsRaw() {
-    if (!this.state.activeWorkspace) return;
-    const raw = this.els.docsRawEditor ? this.els.docsRawEditor.value : '';
-    try {
-      await this.api('PUT', `/api/workspaces/${this.state.activeWorkspace.id}/docs`, { content: raw });
-      this.showToast('Documentation saved', 'success');
-      await this.loadDocs();
-    } catch (err) {
-      this.showToast(err.message || 'Failed to save documentation', 'error');
-    }
-  }
 
 
   /* ═══════════════════════════════════════════════════════════
@@ -8552,624 +8096,26 @@ class CWMApp {
   }
 
 
+
+
+
+
   /* ═══════════════════════════════════════════════════════════
-     PHASE 5: NOTES EDITOR MODAL
+     COST BADGE
      ═══════════════════════════════════════════════════════════ */
 
-  initNotesEditor() {
-    if (!this.els.notesEditorOverlay) return;
-
-    this.els.notesEditorClose.addEventListener('click', () => this.hideNotesEditor());
-    this.els.notesEditorCancel.addEventListener('click', () => this.hideNotesEditor());
-    this.els.notesEditorSave.addEventListener('click', () => this.saveNotesEditor());
-
-    // Ctrl+Enter to save
-    this.els.notesEditorTextarea.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        this.saveNotesEditor();
-      }
-    });
-
-    // Toolbar buttons
-    this.els.notesEditorOverlay.querySelectorAll('.notes-toolbar-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const action = btn.dataset.action;
-        const ta = this.els.notesEditorTextarea;
-        const start = ta.selectionStart;
-        const end = ta.selectionEnd;
-        const selected = ta.value.substring(start, end);
-        let insert = '';
-
-        switch (action) {
-          case 'bold': insert = `**${selected || 'bold text'}**`; break;
-          case 'italic': insert = `*${selected || 'italic text'}*`; break;
-          case 'code': insert = selected.includes('\n') ? `\`\`\`\n${selected}\n\`\`\`` : `\`${selected || 'code'}\``; break;
-          case 'link': insert = `[${selected || 'link text'}](url)`; break;
-          case 'list': insert = `- ${selected || 'item'}`; break;
-        }
-
-        ta.value = ta.value.substring(0, start) + insert + ta.value.substring(end);
-        ta.focus();
-        ta.selectionStart = start;
-        ta.selectionEnd = start + insert.length;
-      });
-    });
-
-    // Click overlay to close
-    this.els.notesEditorOverlay.addEventListener('click', (e) => {
-      if (e.target === this.els.notesEditorOverlay) this.hideNotesEditor();
-    });
-  }
-
-  showNotesEditor(section, index = null, existingText = '') {
-    this._notesEditorSection = section;
-    this._notesEditorIndex = index;
-    const isEdit = index !== null;
-    this.els.notesEditorTitle.textContent = isEdit ? `Edit ${section.slice(0, -1)}` : `Add ${section.slice(0, -1)}`;
-    this.els.notesEditorTextarea.value = existingText;
-    this.els.notesEditorOverlay.hidden = false;
-    setTimeout(() => this.els.notesEditorTextarea.focus(), 50);
-  }
-
-  hideNotesEditor() {
-    this.els.notesEditorOverlay.hidden = true;
-    this.els.notesEditorTextarea.value = '';
-  }
-
-  async saveNotesEditor() {
-    const text = this.els.notesEditorTextarea.value.trim();
-    if (!text) {
-      this.showToast('Note cannot be empty', 'warning');
-      return;
-    }
-    if (!this.state.activeWorkspace) return;
-
-    const wsId = this.state.activeWorkspace.id;
-    const section = this._notesEditorSection;
-
+  async loadCostBadge() {
     try {
-      if (this._notesEditorIndex !== null) {
-        // Edit existing - remove old, add new
-        await this.api('DELETE', `/api/workspaces/${wsId}/docs/${section}/${this._notesEditorIndex}`);
-        await this.api('POST', `/api/workspaces/${wsId}/docs/${section}`, { text });
-      } else {
-        await this.api('POST', `/api/workspaces/${wsId}/docs/${section}`, { text });
+      const data = await this.api('GET', '/api/costs?period=day');
+      const cost = data.totalCost || 0;
+      const chip = document.getElementById('stat-cost-chip');
+      if (chip) {
+        const amt = chip.querySelector('.cost-amount');
+        if (amt) amt.textContent = `$${cost.toFixed(2)}`;
+        chip.hidden = false;
       }
-      this.hideNotesEditor();
-      this.showToast('Saved', 'success');
-      await this.loadDocs();
-    } catch (err) {
-      this.showToast(err.message || 'Failed to save', 'error');
-    }
-  }
-
-
-  /* ═══════════════════════════════════════════════════════════
-     PHASE 6: AI INSIGHTS
-     ═══════════════════════════════════════════════════════════ */
-
-  initAIInsights() {
-    if (this.els.docsAiRefresh) {
-      this.els.docsAiRefresh.addEventListener('click', () => this.loadAIInsights());
-    }
-    this._aiInsightsCache = {};
-  }
-
-  async loadAIInsights() {
-    if (!this.state.activeWorkspace) return;
-    const wsId = this.state.activeWorkspace.id;
-    const container = this.els.docsAiInsights;
-    if (!container) return;
-
-    // Get sessions for this workspace
-    const wsSessions = this.state.sessions.filter(s => s.workspaceId === wsId);
-    if (wsSessions.length === 0) {
-      container.innerHTML = '<div class="ai-insights-empty">No sessions in this workspace</div>';
-      return;
-    }
-
-    // Show loading state - spinning refresh button + header + skeletons
-    const refreshBtn = this.els.docsAiRefresh;
-    if (refreshBtn) {
-      refreshBtn.classList.add('ai-loading');
-      refreshBtn.disabled = true;
-    }
-
-    container.innerHTML = `
-      <div class="ai-insights-loading-header">
-        <span class="ai-loading-spinner"></span>
-        Generating summaries for ${wsSessions.length} session${wsSessions.length !== 1 ? 's' : ''}...
-      </div>` +
-      wsSessions.map((s) =>
-        `<div class="ai-insight-skeleton">
-          <div class="ai-insight-skeleton-label">${this.escapeHtml(s.name || s.id.substring(0, 12))}</div>
-          <div class="ai-insight-skeleton-line"></div>
-          <div class="ai-insight-skeleton-line"></div>
-          <div class="ai-insight-skeleton-line"></div>
-        </div>`
-      ).join('');
-
-    // Fetch summaries for each session
-    const results = await Promise.allSettled(
-      wsSessions.map(async (s) => {
-        const cacheKey = s.id + ':' + (s.lastActive || '');
-        if (this._aiInsightsCache[cacheKey]) return { session: s, data: this._aiInsightsCache[cacheKey] };
-        try {
-          const data = await this.api('POST', `/api/sessions/${s.id}/summarize`, {
-            claudeSessionId: s.resumeSessionId || s.id,
-          });
-          this._aiInsightsCache[cacheKey] = data;
-          return { session: s, data };
-        } catch (err) {
-          return { session: s, error: err.message };
-        }
-      })
-    );
-
-    // Stop loading state
-    if (refreshBtn) {
-      refreshBtn.classList.remove('ai-loading');
-      refreshBtn.disabled = false;
-    }
-
-    // Render results
-    container.innerHTML = results.map(r => {
-      if (r.status === 'rejected' || r.value.error) {
-        const s = r.value ? r.value.session : {};
-        return `<div class="ai-insight-card ai-insight-error">
-          <div class="ai-insight-header">
-            <span class="ai-insight-name">${this.escapeHtml(s.name || 'Unknown')}</span>
-            <span class="ai-insight-badge ai-badge-error">Error</span>
-          </div>
-          <div class="ai-insight-theme">${this.escapeHtml(r.value?.error || 'Failed to load')}</div>
-        </div>`;
-      }
-      const { session, data } = r.value;
-      const sizeKB = data.fileSize ? Math.round(data.fileSize / 1024) : '?';
-      return `<div class="ai-insight-card">
-        <div class="ai-insight-header">
-          <span class="ai-insight-name">${this.escapeHtml(session.name)}</span>
-          <span class="ai-insight-badge">${sizeKB}KB / ${data.messageCount || '?'} msgs</span>
-        </div>
-        <div class="ai-insight-theme"><strong>Theme:</strong> ${this.escapeHtml(data.overallTheme || 'Unknown')}</div>
-        <div class="ai-insight-recent"><strong>Recent:</strong> ${this.escapeHtml(data.recentTasking || 'No recent activity')}</div>
-      </div>`;
-    }).join('');
-  }
-
-
-  /* ═══════════════════════════════════════════════════════════
-     COST DASHBOARD
-     ═══════════════════════════════════════════════════════════ */
-
-  /**
-   * Load cost dashboard data from the API.
-   * @param {string} [period='week'] - Time period: day, week, month, all
-   */
-  async loadCosts(period) {
-    if (!period) {
-      period = this._costsPeriod || 'week';
-    }
-    this._costsPeriod = period;
-
-    // Update period selector active state
-    if (this.els.costsPeriodSelector) {
-      this.els.costsPeriodSelector.querySelectorAll('.costs-period-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.period === period);
-      });
-    }
-
-    const body = this.els.costsBody;
-    if (!body) return;
-
-    try {
-      const data = await this.api('GET', `/api/cost/dashboard?period=${period}`);
-      this.renderCostsDashboard(data);
-    } catch (err) {
-      body.innerHTML = `<div class="costs-loading">Failed to load cost data: ${err.message}</div>`;
-    }
-  }
-
-  /**
-   * Render the full costs dashboard into the costs body element.
-   * @param {object} data - Dashboard data from /api/cost/dashboard
-   */
-  renderCostsDashboard(data) {
-    const body = this.els.costsBody;
-    if (!body) return;
-
-    const { summary, timeline, byModel, byWorkspace, sessions } = data;
-
-    // Format currency helper
-    const fmtCost = (v) => {
-      if (v >= 100) return '$' + v.toFixed(0);
-      if (v >= 10) return '$' + v.toFixed(1);
-      if (v >= 1) return '$' + v.toFixed(2);
-      return '$' + v.toFixed(3);
-    };
-
-    // Format token count helper
-    const fmtTokens = (v) => {
-      if (v >= 1_000_000) return (v / 1_000_000).toFixed(1) + 'M';
-      if (v >= 1_000) return (v / 1_000).toFixed(0) + 'K';
-      return v.toString();
-    };
-
-    // Friendly model name helper
-    const fmtModel = (m) => {
-      if (m.includes('opus-4-6')) return 'Opus 4.6';
-      if (m.includes('opus-4-5')) return 'Opus 4.5';
-      if (m.includes('opus-4-1')) return 'Opus 4.1';
-      if (m.includes('opus-4-0') || m.includes('opus-4-2')) return 'Opus 4';
-      if (m.includes('sonnet-4-5')) return 'Sonnet 4.5';
-      if (m.includes('sonnet-4-0') || m.includes('sonnet-4-2')) return 'Sonnet 4';
-      if (m.includes('3-7-sonnet')) return 'Sonnet 3.7';
-      if (m.includes('haiku-4-5')) return 'Haiku 4.5';
-      if (m.includes('3-5-haiku')) return 'Haiku 3.5';
-      if (m.includes('3-haiku')) return 'Haiku 3';
-      return m.replace('claude-', '');
-    };
-
-    // Color palette for breakdown bars (Catppuccin accent colors)
-    const barColors = ['var(--green)', 'var(--blue)', 'var(--mauve)', 'var(--peach)', 'var(--red)', 'var(--yellow)', 'var(--teal)', 'var(--pink)'];
-
-    let html = '';
-
-    // ── Summary Cards ──
-    const totalTokenCount = (summary.totalTokens.input || 0) + (summary.totalTokens.output || 0) +
-      (summary.totalTokens.cacheWrite || 0) + (summary.totalTokens.cacheRead || 0);
-    html += `<div class="costs-summary">
-      <div class="costs-card">
-        <div class="costs-card-label">Total Cost</div>
-        <div class="costs-card-value green">${fmtCost(summary.totalCost)}</div>
-        <div class="costs-card-sub">${fmtTokens(totalTokenCount)} tokens</div>
-      </div>
-      <div class="costs-card">
-        <div class="costs-card-label">${this.escapeHtml(summary.periodLabel)}</div>
-        <div class="costs-card-value blue">${fmtCost(summary.periodCost)}</div>
-        <div class="costs-card-sub">${summary.messageCount} messages</div>
-      </div>
-      <div class="costs-card">
-        <div class="costs-card-label">Avg / Message</div>
-        <div class="costs-card-value mauve">${fmtCost(summary.avgCostPerMessage)}</div>
-        <div class="costs-card-sub">across all sessions</div>
-      </div>
-      <div class="costs-card">
-        <div class="costs-card-label">Cache Savings</div>
-        <div class="costs-card-value peach">${fmtCost(summary.cacheSavings)}</div>
-        <div class="costs-card-sub">${fmtTokens(summary.totalTokens.cacheRead || 0)} read hits</div>
-      </div>
-    </div>`;
-
-    // ── Timeline Chart ──
-    html += `<div class="costs-chart-section">
-      <h3 class="costs-chart-title">Cost Over Time</h3>
-      <div class="costs-chart-container" id="costs-chart-container">
-        ${timeline.length > 1
-          ? '<div class="costs-chart-tooltip" id="costs-chart-tooltip"><div class="costs-chart-tooltip-date"></div><div class="costs-chart-tooltip-value"></div></div>'
-          : '<div class="costs-chart-empty">Not enough data for timeline</div>'}
-      </div>
-    </div>`;
-
-    // ── Breakdown: By Model + By Workspace ──
-    html += '<div class="costs-breakdown">';
-
-    // By Model
-    html += '<div class="costs-breakdown-card"><h3 class="costs-breakdown-title">By Model</h3>';
-    if (byModel.length === 0) {
-      html += '<div class="costs-breakdown-empty">No model data</div>';
-    } else {
-      const maxModelPct = Math.max(...byModel.map(m => m.pct), 1);
-      byModel.forEach((m, i) => {
-        const barW = Math.max(2, (m.pct / maxModelPct) * 100);
-        html += `<div class="costs-breakdown-item">
-          <span class="costs-breakdown-label">${fmtModel(m.model)}</span>
-          <div class="costs-breakdown-bar-track">
-            <div class="costs-breakdown-bar" style="width:${barW}%;background:${barColors[i % barColors.length]}"></div>
-          </div>
-          <span class="costs-breakdown-value">${fmtCost(m.cost)}</span>
-        </div>`;
-      });
-    }
-    html += '</div>';
-
-    // By Workspace
-    html += '<div class="costs-breakdown-card"><h3 class="costs-breakdown-title">By Workspace</h3>';
-    if (byWorkspace.length === 0) {
-      html += '<div class="costs-breakdown-empty">No workspace data</div>';
-    } else {
-      const maxWsPct = Math.max(...byWorkspace.map(w => w.pct), 1);
-      byWorkspace.forEach((w, i) => {
-        const barW = Math.max(2, (w.pct / maxWsPct) * 100);
-        html += `<div class="costs-breakdown-item">
-          <span class="costs-breakdown-label" title="${this.escapeHtml(w.name)}">${this.escapeHtml(w.name)}</span>
-          <div class="costs-breakdown-bar-track">
-            <div class="costs-breakdown-bar" style="width:${barW}%;background:${barColors[i % barColors.length]}"></div>
-          </div>
-          <span class="costs-breakdown-value">${fmtCost(w.cost)}</span>
-        </div>`;
-      });
-    }
-    html += '</div></div>';
-
-    // ── Session Cost Table ──
-    html += `<div class="costs-sessions-section">
-      <div class="costs-sessions-header">
-        <h3 class="costs-sessions-title">Sessions</h3>
-        <input type="text" class="costs-sessions-search" id="costs-sessions-search" placeholder="Filter sessions..." />
-      </div>`;
-
-    if (sessions.length === 0) {
-      html += '<div class="costs-sessions-empty">No session cost data available</div>';
-    } else {
-      html += `<table class="costs-sessions-table">
-        <thead><tr>
-          <th data-sort="name">Name</th>
-          <th data-sort="workspace">Workspace</th>
-          <th data-sort="cost" class="sort-active">Cost</th>
-          <th data-sort="messages">Msgs</th>
-          <th data-sort="model">Model</th>
-        </tr></thead>
-        <tbody id="costs-sessions-tbody">`;
-      for (const s of sessions.slice(0, 50)) {
-        html += `<tr data-session-id="${s.id}" class="costs-session-row">
-          <td class="name-cell" title="${this.escapeHtml(s.name)}">${this.escapeHtml(s.name)}</td>
-          <td class="workspace-cell" title="${this.escapeHtml(s.workspaceName)}">${this.escapeHtml(s.workspaceName)}</td>
-          <td class="cost-cell">${fmtCost(s.cost)}</td>
-          <td>${s.messageCount}</td>
-          <td class="model-cell">${fmtModel(s.model)}</td>
-        </tr>`;
-      }
-      html += '</tbody></table>';
-    }
-    html += '</div>';
-
-    body.innerHTML = html;
-
-    // ── Render SVG chart if we have timeline data ──
-    if (timeline.length > 1) {
-      this.renderCostChart(timeline);
-    }
-
-    // ── Wire up session search filter ──
-    const searchInput = document.getElementById('costs-sessions-search');
-    const tbody = document.getElementById('costs-sessions-tbody');
-    if (searchInput && tbody) {
-      searchInput.addEventListener('input', () => {
-        const q = searchInput.value.toLowerCase();
-        tbody.querySelectorAll('.costs-session-row').forEach(row => {
-          const name = (row.querySelector('.name-cell')?.textContent || '').toLowerCase();
-          const ws = (row.querySelector('.workspace-cell')?.textContent || '').toLowerCase();
-          row.hidden = q && !name.includes(q) && !ws.includes(q);
-        });
-      });
-    }
-
-    // ── Wire up table sorting ──
-    const table = body.querySelector('.costs-sessions-table');
-    if (table && tbody) {
-      this._costsSortCol = 'cost';
-      this._costsSortAsc = false;
-      this._costsSessionsData = sessions;
-
-      table.querySelectorAll('th[data-sort]').forEach(th => {
-        th.addEventListener('click', () => {
-          const col = th.dataset.sort;
-          if (this._costsSortCol === col) {
-            this._costsSortAsc = !this._costsSortAsc;
-          } else {
-            this._costsSortCol = col;
-            this._costsSortAsc = col === 'name' || col === 'workspace'; // alpha default asc
-          }
-          // Update header styling
-          table.querySelectorAll('th').forEach(h => {
-            h.classList.remove('sort-active', 'sort-asc');
-          });
-          th.classList.add('sort-active');
-          if (this._costsSortAsc) th.classList.add('sort-asc');
-
-          // Sort and re-render rows
-          this._sortCostsTable(tbody);
-        });
-      });
-    }
-
-    // ── Wire up row click to navigate to session ──
-    if (tbody) {
-      tbody.querySelectorAll('.costs-session-row').forEach(row => {
-        row.style.cursor = 'pointer';
-        row.addEventListener('click', () => {
-          const sid = row.dataset.sessionId;
-          if (sid) {
-            this.state.selectedSession = sid;
-            this.setViewMode('workspace');
-            this.selectSession(sid);
-          }
-        });
-      });
-    }
-  }
-
-  /**
-   * Sort the costs session table body by current sort column/direction.
-   * @param {HTMLElement} tbody - Table body element
-   */
-  _sortCostsTable(tbody) {
-    const data = this._costsSessionsData;
-    if (!data) return;
-
-    const col = this._costsSortCol;
-    const asc = this._costsSortAsc;
-
-    const sorted = [...data].sort((a, b) => {
-      let va, vb;
-      switch (col) {
-        case 'name': va = (a.name || '').toLowerCase(); vb = (b.name || '').toLowerCase(); break;
-        case 'workspace': va = (a.workspaceName || '').toLowerCase(); vb = (b.workspaceName || '').toLowerCase(); break;
-        case 'cost': va = a.cost; vb = b.cost; break;
-        case 'messages': va = a.messageCount; vb = b.messageCount; break;
-        case 'model': va = a.model || ''; vb = b.model || ''; break;
-        default: return 0;
-      }
-      if (va < vb) return asc ? -1 : 1;
-      if (va > vb) return asc ? 1 : -1;
-      return 0;
-    });
-
-    const fmtCost = (v) => {
-      if (v >= 100) return '$' + v.toFixed(0);
-      if (v >= 10) return '$' + v.toFixed(1);
-      if (v >= 1) return '$' + v.toFixed(2);
-      return '$' + v.toFixed(3);
-    };
-    const fmtModel = (m) => {
-      if (m.includes('opus-4-6')) return 'Opus 4.6';
-      if (m.includes('opus-4-5')) return 'Opus 4.5';
-      if (m.includes('opus-4-1')) return 'Opus 4.1';
-      if (m.includes('opus-4-0') || m.includes('opus-4-2')) return 'Opus 4';
-      if (m.includes('sonnet-4-5')) return 'Sonnet 4.5';
-      if (m.includes('sonnet-4-0') || m.includes('sonnet-4-2')) return 'Sonnet 4';
-      if (m.includes('3-7-sonnet')) return 'Sonnet 3.7';
-      if (m.includes('haiku-4-5')) return 'Haiku 4.5';
-      if (m.includes('3-5-haiku')) return 'Haiku 3.5';
-      if (m.includes('3-haiku')) return 'Haiku 3';
-      return m.replace('claude-', '');
-    };
-
-    let rowsHtml = '';
-    for (const s of sorted.slice(0, 50)) {
-      rowsHtml += `<tr data-session-id="${s.id}" class="costs-session-row" style="cursor:pointer">
-        <td class="name-cell" title="${this.escapeHtml(s.name)}">${this.escapeHtml(s.name)}</td>
-        <td class="workspace-cell" title="${this.escapeHtml(s.workspaceName)}">${this.escapeHtml(s.workspaceName)}</td>
-        <td class="cost-cell">${fmtCost(s.cost)}</td>
-        <td>${s.messageCount}</td>
-        <td class="model-cell">${fmtModel(s.model)}</td>
-      </tr>`;
-    }
-    tbody.innerHTML = rowsHtml;
-
-    // Re-wire row clicks
-    tbody.querySelectorAll('.costs-session-row').forEach(row => {
-      row.addEventListener('click', () => {
-        const sid = row.dataset.sessionId;
-        if (sid) {
-          this.state.selectedSession = sid;
-          this.setViewMode('workspace');
-          this.selectSession(sid);
-        }
-      });
-    });
-  }
-
-  /**
-   * Render an SVG line chart for cost timeline data.
-   * Pure SVG - no chart library needed.
-   * @param {Array<{date, cost, tokens, messages}>} timeline - Daily cost data
-   */
-  renderCostChart(timeline) {
-    const container = document.getElementById('costs-chart-container');
-    if (!container || timeline.length < 2) return;
-
-    const tooltip = document.getElementById('costs-chart-tooltip');
-
-    // Chart dimensions (SVG viewBox coordinates)
-    const W = 600, H = 180;
-    const padL = 50, padR = 15, padT = 15, padB = 30;
-    const chartW = W - padL - padR;
-    const chartH = H - padT - padB;
-
-    const maxCost = Math.max(...timeline.map(d => d.cost), 0.01);
-    const n = timeline.length;
-
-    // Map data to SVG coordinates
-    const points = timeline.map((d, i) => ({
-      x: padL + (i / (n - 1)) * chartW,
-      y: padT + chartH - (d.cost / maxCost) * chartH,
-      date: d.date,
-      cost: d.cost,
-      messages: d.messages || 0,
-    }));
-
-    // Build SVG
-    let svg = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">`;
-
-    // Y-axis grid lines + labels (4 lines)
-    for (let i = 0; i <= 4; i++) {
-      const y = padT + (i / 4) * chartH;
-      const val = maxCost * (1 - i / 4);
-      svg += `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" class="chart-grid"/>`;
-      svg += `<text x="${padL - 6}" y="${y + 3}" class="chart-label chart-label-y">$${val >= 1 ? val.toFixed(1) : val.toFixed(2)}</text>`;
-    }
-
-    // Area fill polygon
-    const areaPoints = points.map(p => `${p.x},${p.y}`).join(' ');
-    svg += `<polygon class="chart-area" points="${points[0].x},${padT + chartH} ${areaPoints} ${points[n - 1].x},${padT + chartH}"/>`;
-
-    // Line
-    svg += `<polyline class="chart-line" points="${areaPoints}"/>`;
-
-    // Data dots
-    points.forEach((p, i) => {
-      svg += `<circle class="chart-dot" cx="${p.x}" cy="${p.y}" r="3" data-idx="${i}"/>`;
-    });
-
-    // X-axis labels (show up to 7 labels, evenly spaced)
-    const labelCount = Math.min(7, n);
-    const labelStep = Math.max(1, Math.floor((n - 1) / (labelCount - 1)));
-    for (let i = 0; i < n; i += labelStep) {
-      const p = points[i];
-      // Format date as Mon DD
-      const dateObj = new Date(p.date + 'T00:00:00');
-      const label = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      svg += `<text x="${p.x}" y="${H - 5}" class="chart-label" text-anchor="middle">${label}</text>`;
-    }
-    // Always show last label if not already shown
-    if ((n - 1) % labelStep !== 0) {
-      const p = points[n - 1];
-      const dateObj = new Date(p.date + 'T00:00:00');
-      const label = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      svg += `<text x="${p.x}" y="${H - 5}" class="chart-label" text-anchor="middle">${label}</text>`;
-    }
-
-    svg += '</svg>';
-
-    // Insert SVG before tooltip
-    if (tooltip) {
-      const svgWrapper = document.createElement('div');
-      svgWrapper.innerHTML = svg;
-      container.insertBefore(svgWrapper.firstChild, tooltip);
-    } else {
-      container.innerHTML = svg;
-    }
-
-    // Tooltip hover interaction
-    if (tooltip) {
-      container.querySelectorAll('.chart-dot').forEach(dot => {
-        dot.addEventListener('mouseenter', (e) => {
-          const idx = parseInt(e.target.dataset.idx);
-          const p = points[idx];
-          if (!p) return;
-
-          const dateObj = new Date(p.date + 'T00:00:00');
-          const dateStr = dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-
-          tooltip.querySelector('.costs-chart-tooltip-date').textContent = dateStr;
-          tooltip.querySelector('.costs-chart-tooltip-value').textContent =
-            `$${p.cost >= 1 ? p.cost.toFixed(2) : p.cost.toFixed(3)} · ${p.messages} msgs`;
-
-          // Position tooltip near the dot
-          const rect = container.getBoundingClientRect();
-          const dotRect = e.target.getBoundingClientRect();
-          tooltip.style.left = (dotRect.left - rect.left - 40) + 'px';
-          tooltip.style.top = (dotRect.top - rect.top - 45) + 'px';
-          tooltip.classList.add('visible');
-        });
-
-        dot.addEventListener('mouseleave', () => {
-          tooltip.classList.remove('visible');
-        });
-      });
+    } catch {
+      // Silently ignore — cost badge is non-critical
     }
   }
 
@@ -10530,271 +9476,6 @@ class CWMApp {
     });
   }
 
-  /* ═══════════════════════════════════════════════════════════
-     FEATURE TRACKING BOARD
-     ═══════════════════════════════════════════════════════════ */
-
-  async loadFeatureBoard() {
-    const ws = this.state.activeWorkspace;
-    if (!ws) return;
-
-    try {
-      const data = await this.api('GET', `/api/workspaces/${ws.id}/features`);
-      this._features = data.features || [];
-      this.renderFeatureBoard();
-    } catch (err) {
-      this.showToast(err.message || 'Failed to load features', 'error');
-    }
-  }
-
-  renderFeatureBoard() {
-    const features = this._features || [];
-    const statuses = ['backlog', 'planned', 'in-progress', 'review', 'done'];
-
-    statuses.forEach(status => {
-      const columnBody = document.querySelector(`.board-column-body[data-status="${status}"]`);
-      const countEl = document.querySelector(`.board-column-count[data-count="${status}"]`);
-      if (!columnBody) return;
-
-      const statusFeatures = features.filter(f => f.status === status);
-      if (countEl) countEl.textContent = statusFeatures.length;
-
-      columnBody.innerHTML = statusFeatures.map(f => {
-        const priorityClass = f.priority ? `board-card-priority-${f.priority}` : 'board-card-priority-normal';
-        const sessionCount = (f.sessionIds || []).length;
-        const desc = f.description ? `<div class="board-card-desc">${this.escapeHtml(f.description)}</div>` : '';
-        const complexityBadge = f.complexity ? `<span class="board-card-complexity board-card-complexity-${f.complexity}">${f.complexity}</span>` : '';
-        const attemptsBadge = f.attempts > 0 ? `<span class="board-card-attempts" title="Attempt ${f.attempts}/${f.maxRetries || 3}">&#x21bb;${f.attempts}</span>` : '';
-        const waveBadge = f.wave ? `<span class="board-card-wave" title="Wave ${f.wave}">W${f.wave}</span>` : '';
-
-        return `<div class="board-card" draggable="true" data-feature-id="${f.id}">
-          <div class="board-card-name">${this.escapeHtml(f.name)}</div>
-          ${desc}
-          <div class="board-card-meta">
-            <span class="board-card-priority ${priorityClass}">${f.priority || 'normal'}</span>
-            ${complexityBadge}${waveBadge}${attemptsBadge}
-            ${sessionCount > 0 ? `<span class="board-card-sessions">${sessionCount} session${sessionCount > 1 ? 's' : ''}</span>` : ''}
-          </div>
-        </div>`;
-      }).join('') || '<div style="padding:12px;text-align:center;color:var(--surface2);font-size:11px">No features</div>';
-
-      // Drag-and-drop handlers for column
-      columnBody.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        columnBody.classList.add('drag-over');
-      });
-      columnBody.addEventListener('dragleave', () => {
-        columnBody.classList.remove('drag-over');
-      });
-      columnBody.addEventListener('drop', (e) => {
-        e.preventDefault();
-        columnBody.classList.remove('drag-over');
-        const featureId = e.dataTransfer.getData('cwm/feature-id');
-        if (featureId) this.moveFeature(featureId, status);
-      });
-    });
-
-    // Card drag handlers
-    document.querySelectorAll('.board-card').forEach(card => {
-      card.addEventListener('dragstart', (e) => {
-        e.dataTransfer.setData('cwm/feature-id', card.dataset.featureId);
-        card.classList.add('dragging');
-      });
-      card.addEventListener('dragend', () => {
-        card.classList.remove('dragging');
-      });
-      // Right-click for feature context menu
-      card.addEventListener('contextmenu', (e) => {
-        e.preventDefault();
-        this.showFeatureContextMenu(card.dataset.featureId, e.clientX, e.clientY);
-      });
-    });
-  }
-
-  async moveFeature(featureId, newStatus) {
-    try {
-      await this.api('PUT', `/api/features/${featureId}`, { status: newStatus });
-      await this.loadFeatureBoard();
-    } catch (err) {
-      this.showToast(err.message || 'Failed to move feature', 'error');
-    }
-  }
-
-  async createFeature() {
-    const ws = this.state.activeWorkspace;
-    if (!ws) return;
-
-    const result = await this.showPromptModal({
-      title: 'New Feature',
-      fields: [
-        { key: 'name', label: 'Feature Name', placeholder: 'User authentication', required: true },
-        { key: 'description', label: 'Description', type: 'textarea', placeholder: 'Details about the feature...' },
-        { key: 'priority', label: 'Priority', type: 'select', options: [
-          { value: 'low', label: 'Low' },
-          { value: 'normal', label: 'Normal' },
-          { value: 'high', label: 'High' },
-          { value: 'urgent', label: 'Urgent' },
-        ]},
-        { key: 'status', label: 'Status', type: 'select', options: [
-          { value: 'backlog', label: 'Backlog' },
-          { value: 'planned', label: 'Planned' },
-          { value: 'in-progress', label: 'In Progress' },
-          { value: 'review', label: 'Review' },
-          { value: 'done', label: 'Done' },
-        ]},
-      ],
-      confirmText: 'Create Feature',
-    });
-
-    if (!result) return;
-
-    try {
-      await this.api('POST', `/api/workspaces/${ws.id}/features`, {
-        name: result.name,
-        description: result.description || '',
-        priority: result.priority || 'normal',
-        status: result.status || 'backlog',
-      });
-      await this.loadFeatureBoard();
-      this.showToast('Feature created', 'success');
-    } catch (err) {
-      this.showToast(err.message || 'Failed to create feature', 'error');
-    }
-  }
-
-  showFeatureContextMenu(featureId, x, y) {
-    const feature = (this._features || []).find(f => f.id === featureId);
-    if (!feature) return;
-
-    const ws = this.state.activeWorkspace;
-    const wsSessions = (this.state.allSessions || this.state.sessions).filter(s => s.workspaceId === ws?.id);
-
-    const items = [
-      { label: 'Edit', icon: '&#9998;', action: () => this.editFeature(featureId) },
-      { type: 'sep' },
-      { label: 'Move to Backlog', icon: '&#128220;', action: () => this.moveFeature(featureId, 'backlog'), disabled: feature.status === 'backlog' },
-      { label: 'Move to Planned', icon: '&#128203;', action: () => this.moveFeature(featureId, 'planned'), disabled: feature.status === 'planned' },
-      { label: 'Move to In Progress', icon: '&#9889;', action: () => this.moveFeature(featureId, 'in-progress'), disabled: feature.status === 'in-progress' },
-      { label: 'Move to Review', icon: '&#128269;', action: () => this.moveFeature(featureId, 'review'), disabled: feature.status === 'review' },
-      { label: 'Move to Done', icon: '&#10004;', action: () => this.moveFeature(featureId, 'done'), disabled: feature.status === 'done' },
-      { type: 'sep' },
-    ];
-
-    // Link session option
-    if (wsSessions.length > 0) {
-      items.push({ label: 'Link Session...', icon: '&#128279;', action: () => this.linkSessionToFeature(featureId, wsSessions) });
-    }
-
-    // Show linked sessions
-    if (feature.sessionIds && feature.sessionIds.length > 0) {
-      items.push({ type: 'sep' });
-      feature.sessionIds.forEach(sid => {
-        const sess = wsSessions.find(s => s.id === sid);
-        if (sess) {
-          items.push({ label: `Unlink: ${sess.name}`, icon: '&#10005;', action: () => this.unlinkSessionFromFeature(featureId, sid) });
-        }
-      });
-    }
-
-    items.push({ type: 'sep' });
-    items.push({ label: 'Delete Feature', icon: '&#10005;', action: () => this.deleteFeature(featureId), danger: true });
-
-    this._renderContextItems(feature.name, items, x, y);
-  }
-
-  async editFeature(featureId) {
-    const feature = (this._features || []).find(f => f.id === featureId);
-    if (!feature) return;
-
-    const result = await this.showPromptModal({
-      title: 'Edit Feature',
-      fields: [
-        { key: 'name', label: 'Feature Name', value: feature.name, required: true },
-        { key: 'description', label: 'Description', type: 'textarea', value: feature.description || '' },
-        { key: 'priority', label: 'Priority', type: 'select', value: feature.priority, options: [
-          { value: 'low', label: 'Low' },
-          { value: 'normal', label: 'Normal' },
-          { value: 'high', label: 'High' },
-          { value: 'urgent', label: 'Urgent' },
-        ]},
-      ],
-      confirmText: 'Save Changes',
-    });
-
-    if (!result) return;
-
-    try {
-      await this.api('PUT', `/api/features/${featureId}`, {
-        name: result.name,
-        description: result.description || '',
-        priority: result.priority || feature.priority,
-      });
-      await this.loadFeatureBoard();
-      this.showToast('Feature updated', 'success');
-    } catch (err) {
-      this.showToast(err.message || 'Failed to update feature', 'error');
-    }
-  }
-
-  async linkSessionToFeature(featureId, wsSessions) {
-    // Filter out already-linked sessions
-    const feature = (this._features || []).find(f => f.id === featureId);
-    if (!feature) return;
-    const linkedIds = new Set(feature.sessionIds || []);
-    const available = wsSessions.filter(s => !linkedIds.has(s.id));
-
-    if (available.length === 0) {
-      this.showToast('All sessions already linked', 'info');
-      return;
-    }
-
-    const options = available.map(s => ({ value: s.id, label: s.name }));
-    const result = await this.showPromptModal({
-      title: 'Link Session to Feature',
-      fields: [
-        { key: 'sessionId', label: 'Session', type: 'select', options, required: true },
-      ],
-      confirmText: 'Link',
-    });
-
-    if (result && result.sessionId) {
-      try {
-        await this.api('POST', `/api/features/${featureId}/sessions/${result.sessionId}`);
-        await this.loadFeatureBoard();
-        this.showToast('Session linked', 'success');
-      } catch (err) {
-        this.showToast(err.message || 'Failed to link session', 'error');
-      }
-    }
-  }
-
-  async unlinkSessionFromFeature(featureId, sessionId) {
-    try {
-      await this.api('DELETE', `/api/features/${featureId}/sessions/${sessionId}`);
-      await this.loadFeatureBoard();
-      this.showToast('Session unlinked', 'success');
-    } catch (err) {
-      this.showToast(err.message || 'Failed to unlink session', 'error');
-    }
-  }
-
-  async deleteFeature(featureId) {
-    const confirmed = await this.showConfirmModal({
-      title: 'Delete Feature',
-      message: 'This feature will be permanently deleted. Continue?',
-      confirmText: 'Delete',
-    });
-
-    if (!confirmed) return;
-
-    try {
-      await this.api('DELETE', `/api/features/${featureId}`);
-      await this.loadFeatureBoard();
-      this.showToast('Feature deleted', 'success');
-    } catch (err) {
-      this.showToast(err.message || 'Failed to delete feature', 'error');
-    }
-  }
 
 
   /* ═══════════════════════════════════════════════════════════

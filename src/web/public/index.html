@@ -93,44 +93,24 @@
         </button>
         <div class="header-brand">
           <img src="logo-cropped.png" alt="Myrlin" class="header-logo-img">
-          <span class="header-title">Myrlin's Workbook</span>
+          <span class="header-title">Myrlin</span>
         </div>
       </div>
 
       <div class="header-center">
         <nav class="view-tabs" role="tablist">
-          <button class="view-tab" data-mode="workspace" role="tab" aria-selected="false">
+          <button class="view-tab active" data-mode="terminal" role="tab" aria-selected="true">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M0 2a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V2zm3.5 1a.5.5 0 0 0-.354.854l2.5 2.5a.5.5 0 0 0 .708 0l2.5-2.5A.5.5 0 0 0 8.5 3h-5z"/></svg>
+            Terminal
+          </button>
+          <button class="view-tab" data-mode="board" role="tab" aria-selected="false">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
               <rect x="1" y="1" width="5" height="5" rx="1.5" stroke="currentColor" stroke-width="1.2"/>
               <rect x="8" y="1" width="5" height="5" rx="1.5" stroke="currentColor" stroke-width="1.2"/>
               <rect x="1" y="8" width="5" height="5" rx="1.5" stroke="currentColor" stroke-width="1.2"/>
               <rect x="8" y="8" width="5" height="5" rx="1.5" stroke="currentColor" stroke-width="1.2"/>
             </svg>
-            Workspace
-          </button>
-          <button class="view-tab" data-mode="costs" role="tab" aria-selected="false">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path d="M7 1v12M4.5 3.5C4.5 2.67 5.62 2 7 2s2.5.67 2.5 1.5S8.38 5 7 5 4.5 5.67 4.5 6.5 5.62 8 7 8s2.5.67 2.5 1.5S8.38 11 7 11s-2.5-.67-2.5-1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-            </svg>
-            Costs
-          </button>
-          <button class="view-tab" data-mode="recent" role="tab" aria-selected="false">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.2"/>
-              <path d="M7 4v3.5l2.5 1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            Recent
-          </button>
-          <button class="view-tab active" data-mode="terminal" role="tab" aria-selected="true">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M0 2a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V2zm3.5 1a.5.5 0 0 0-.354.854l2.5 2.5a.5.5 0 0 0 .708 0l2.5-2.5A.5.5 0 0 0 8.5 3h-5z"/></svg>
-            Terminal
-          </button>
-          <button class="view-tab" data-mode="docs" role="tab" aria-selected="false">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-              <path d="M4 1h8a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V2a1 1 0 011-1z" stroke="currentColor" stroke-width="1.2"/>
-              <path d="M6 5h4M6 8h4M6 11h2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-            </svg>
-            Docs
+            Board
           </button>
           <button class="view-tab" data-mode="resources" role="tab" aria-selected="false">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
@@ -189,6 +169,12 @@
               <path d="M3 2h8a1 1 0 011 1v8a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" stroke-width="1.2"/>
             </svg>
             <span id="stat-total">0</span>
+          </div>
+          <div class="stat-chip stat-chip-cost" id="stat-cost-chip" title="Daily cost estimate">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M7 1v12M4.5 3.5C4.5 2.67 5.62 2 7 2s2.5.67 2.5 1.5S8.38 5 7 5 4.5 5.67 4.5 6.5 5.62 8 7 8s2.5.67 2.5 1.5S8.38 11 7 11s-2.5-.67-2.5-1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+            </svg>
+            <span id="stat-cost">$0</span>
           </div>
         </div>
 
@@ -346,171 +332,6 @@
       <!-- Content -->
       <main class="main-content" id="main-content">
 
-        <!-- Session List -->
-        <div class="session-list-panel" id="session-list-panel">
-          <div class="panel-header">
-            <h2 class="panel-title" id="session-panel-title">Sessions</h2>
-            <div style="display: flex; gap: 6px;">
-              <button class="btn btn-ghost btn-sm" id="discover-btn" title="Discover Claude sessions on this PC">
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                  <circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.3"/>
-                  <path d="M9.5 9.5L13 13" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
-                </svg>
-                Discover
-              </button>
-              <button class="btn btn-primary btn-sm" id="create-session-btn">
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                  <path d="M7 2v10M2 7h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                </svg>
-                New
-              </button>
-            </div>
-          </div>
-          <div class="session-list" id="session-list">
-            <!-- Session items rendered here -->
-          </div>
-          <div class="empty-state" id="session-empty" hidden>
-            <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-              <rect x="8" y="8" width="32" height="32" rx="8" stroke="var(--surface2)" stroke-width="2"/>
-              <path d="M18 20h12M18 26h8" stroke="var(--surface2)" stroke-width="2" stroke-linecap="round"/>
-            </svg>
-            <p class="empty-title">No sessions yet</p>
-            <p class="empty-desc">Create a session to get started</p>
-          </div>
-        </div>
-
-        <!-- Session Detail -->
-        <div class="session-detail-panel" id="session-detail-panel" hidden>
-          <div class="detail-header">
-            <button class="btn btn-ghost btn-icon btn-sm detail-back-btn" id="detail-back-btn" title="Back to list">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </button>
-            <div class="detail-title-row">
-              <span class="detail-status-dot" id="detail-status-dot"></span>
-              <h2 class="detail-title" id="detail-title">Session Name</h2>
-            </div>
-            <div class="detail-actions">
-              <button class="btn btn-ghost btn-icon btn-sm" id="detail-rename-btn" title="Rename session">
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                  <path d="M8.5 2.5l3 3M2 9.5V12h2.5L11 5.5l-3-3L2 9.5z" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </button>
-              <button class="btn btn-ghost btn-icon btn-sm" id="detail-delete-btn" title="Hide session">
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                  <path d="M2.5 4h9M5 4V2.5h4V4M3.5 4v7.5a1 1 0 001 1h5a1 1 0 001-1V4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </button>
-            </div>
-          </div>
-
-          <div class="detail-body" id="detail-body">
-            <div class="detail-meta">
-              <div class="meta-row">
-                <span class="meta-label">Status</span>
-                <span class="meta-value" id="detail-status-badge"></span>
-              </div>
-              <div class="meta-row">
-                <span class="meta-label">Workspace</span>
-                <span class="meta-value" id="detail-workspace"></span>
-              </div>
-              <div class="meta-row">
-                <span class="meta-label">Directory</span>
-                <span class="meta-value meta-mono" id="detail-dir"></span>
-              </div>
-              <div class="meta-row">
-                <span class="meta-label">Topic</span>
-                <span class="meta-value" id="detail-topic"></span>
-              </div>
-              <div class="meta-row">
-                <span class="meta-label">Command</span>
-                <span class="meta-value meta-mono" id="detail-command"></span>
-              </div>
-              <div class="meta-row">
-                <span class="meta-label">PID</span>
-                <span class="meta-value meta-mono" id="detail-pid"></span>
-              </div>
-              <div class="meta-row">
-                <span class="meta-label">Ports</span>
-                <span class="meta-value meta-mono" id="detail-ports"></span>
-              </div>
-              <div class="meta-row">
-                <span class="meta-label">Branch</span>
-                <span class="meta-value meta-mono" id="detail-branch"></span>
-              </div>
-              <div class="meta-row">
-                <span class="meta-label">Created</span>
-                <span class="meta-value" id="detail-created"></span>
-              </div>
-              <div class="meta-row">
-                <span class="meta-label">Last Active</span>
-                <span class="meta-value" id="detail-last-active"></span>
-              </div>
-            </div>
-
-            <!-- Cost tracking -->
-            <div class="cost-summary" id="detail-cost" hidden>
-              <div class="cost-total-label">Estimated Cost</div>
-              <div class="cost-total" id="detail-cost-total">$0.00</div>
-              <div class="cost-breakdown" id="detail-cost-breakdown"></div>
-              <div class="token-bar" id="detail-token-bar">
-                <div class="token-bar-fill token-bar-input" id="detail-token-input" style="width:0"></div>
-              </div>
-              <div style="display:flex;gap:12px;font-size:10px;color:var(--subtext0);margin-top:2px">
-                <span><span style="color:var(--blue)">&#9679;</span> Input</span>
-                <span><span style="color:var(--peach)">&#9679;</span> Output</span>
-                <span><span style="color:var(--green)">&#9679;</span> Cache</span>
-              </div>
-            </div>
-
-            <!-- Subagent Tracking -->
-            <div class="subagent-section" id="detail-subagents" hidden>
-              <div class="subagent-header">
-                <span class="subagent-label">Subagents</span>
-                <span class="subagent-count" id="detail-subagent-count">0</span>
-              </div>
-              <div class="subagent-list" id="detail-subagent-list"></div>
-            </div>
-
-            <!-- Workspace Analytics -->
-            <div class="detail-analytics" id="detail-analytics" hidden>
-              <div class="detail-section-title">Analytics</div>
-              <div class="analytics-grid" id="analytics-grid"></div>
-              <div class="analytics-top-sessions" id="analytics-top-sessions"></div>
-            </div>
-
-            <div class="detail-control-bar">
-              <button class="btn btn-primary btn-sm" id="detail-start-btn">
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                  <path d="M4 2.5l8 4.5-8 4.5V2.5z" fill="currentColor"/>
-                </svg>
-                Start
-              </button>
-              <button class="btn btn-ghost btn-sm" id="detail-stop-btn">
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                  <rect x="3" y="3" width="8" height="8" rx="1.5" fill="currentColor"/>
-                </svg>
-                Stop
-              </button>
-              <button class="btn btn-ghost btn-sm" id="detail-restart-btn">
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                  <path d="M2 7a5 5 0 019.33-2.5M12 7a5 5 0 01-9.33 2.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
-                  <path d="M11 2v3h-3M3 12V9h3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-                Restart
-              </button>
-            </div>
-
-            <div class="detail-logs">
-              <h3 class="detail-logs-title">Activity Log</h3>
-              <div class="logs-container" id="detail-logs">
-                <!-- Log entries rendered here -->
-              </div>
-            </div>
-          </div>
-        </div>
-
         <!-- Terminal Tab Groups Bar -->
         <div class="terminal-groups-bar" id="terminal-groups-bar" hidden>
           <div class="terminal-groups-tabs" id="terminal-groups-tabs">
@@ -623,166 +444,65 @@
           </div>
         </div>
 
-        <!-- Workspace Documentation Panel -->
-        <div class="docs-panel" id="docs-panel" hidden>
-          <div class="docs-header">
-            <div class="docs-header-left">
-              <h2 class="docs-title">Documentation</h2>
-              <span class="docs-workspace-name" id="docs-workspace-name"></span>
+        <!-- Board Panel (Global Kanban) -->
+        <div class="board-panel" id="board-panel" hidden>
+          <div class="board-header">
+            <div class="board-header-left">
+              <h2 class="board-title">Feature Board</h2>
             </div>
-            <div class="docs-header-right">
-              <button class="btn btn-ghost btn-sm" id="docs-toggle-raw" title="Toggle raw markdown editor">
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 4l3 4-3 4M8 12h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                Raw
-              </button>
-              <button class="btn btn-primary btn-sm" id="docs-save-btn" hidden>Save</button>
+            <div class="board-header-right">
+              <select class="board-filter" id="board-filter" title="Filter by workspace">
+                <option value="">All Workspaces</option>
+              </select>
+              <button class="btn btn-primary btn-sm" id="board-add-btn">+ Feature</button>
             </div>
           </div>
-
-          <!-- Docs / Board Tab Bar -->
-          <div class="docs-tabs">
-            <button class="docs-tab active" data-tab="docs">Docs</button>
-            <button class="docs-tab" data-tab="board">Board</button>
+          <!-- Board / Dependencies sub-tabs -->
+          <div class="board-sub-tabs">
+            <button class="board-sub-tab active" data-board-tab="board">Board</button>
+            <button class="board-sub-tab" data-board-tab="dependencies">Dependencies</button>
           </div>
-
-          <!-- Feature Board (Kanban) -->
-          <div class="feature-board" id="feature-board" hidden>
-            <div class="board-toolbar">
-              <button class="btn btn-sm btn-ghost" id="board-add-btn">+ Feature</button>
+          <!-- Kanban Columns -->
+          <div class="board-columns" id="board-columns">
+            <div class="board-column" data-status="backlog">
+              <div class="board-column-header">
+                <span class="board-column-title">Backlog</span>
+                <span class="board-column-count" data-count="backlog">0</span>
+              </div>
+              <div class="board-column-body" data-status="backlog"></div>
             </div>
-            <div class="board-columns" id="board-columns">
-              <div class="board-column" data-status="backlog">
-                <div class="board-column-header">
-                  <span class="board-column-title">Backlog</span>
-                  <span class="board-column-count" data-count="backlog">0</span>
-                </div>
-                <div class="board-column-body" data-status="backlog"></div>
+            <div class="board-column" data-status="planned">
+              <div class="board-column-header">
+                <span class="board-column-title">Planned</span>
+                <span class="board-column-count" data-count="planned">0</span>
               </div>
-              <div class="board-column" data-status="planned">
-                <div class="board-column-header">
-                  <span class="board-column-title">Planned</span>
-                  <span class="board-column-count" data-count="planned">0</span>
-                </div>
-                <div class="board-column-body" data-status="planned"></div>
+              <div class="board-column-body" data-status="planned"></div>
+            </div>
+            <div class="board-column" data-status="in-progress">
+              <div class="board-column-header">
+                <span class="board-column-title">In Progress</span>
+                <span class="board-column-count" data-count="in-progress">0</span>
               </div>
-              <div class="board-column" data-status="in-progress">
-                <div class="board-column-header">
-                  <span class="board-column-title">In Progress</span>
-                  <span class="board-column-count" data-count="in-progress">0</span>
-                </div>
-                <div class="board-column-body" data-status="in-progress"></div>
+              <div class="board-column-body" data-status="in-progress"></div>
+            </div>
+            <div class="board-column" data-status="review">
+              <div class="board-column-header">
+                <span class="board-column-title">Review</span>
+                <span class="board-column-count" data-count="review">0</span>
               </div>
-              <div class="board-column" data-status="review">
-                <div class="board-column-header">
-                  <span class="board-column-title">Review</span>
-                  <span class="board-column-count" data-count="review">0</span>
-                </div>
-                <div class="board-column-body" data-status="review"></div>
+              <div class="board-column-body" data-status="review"></div>
+            </div>
+            <div class="board-column" data-status="done">
+              <div class="board-column-header">
+                <span class="board-column-title">Done</span>
+                <span class="board-column-count" data-count="done">0</span>
               </div>
-              <div class="board-column" data-status="done">
-                <div class="board-column-header">
-                  <span class="board-column-title">Done</span>
-                  <span class="board-column-count" data-count="done">0</span>
-                </div>
-                <div class="board-column-body" data-status="done"></div>
-              </div>
+              <div class="board-column-body" data-status="done"></div>
             </div>
           </div>
-
-          <!-- Structured View -->
-          <div class="docs-structured" id="docs-structured">
-            <div class="docs-section" data-section="notes">
-              <div class="docs-section-header">
-                <span class="docs-section-chevron open">&#9654;</span>
-                <h3 class="docs-section-title">Notes</h3>
-                <span class="docs-section-count" id="docs-notes-count">0</span>
-                <button class="btn btn-ghost btn-icon btn-sm docs-add-btn" data-section="notes" title="Add note">+</button>
-              </div>
-              <div class="docs-section-body" id="docs-notes-list"></div>
-            </div>
-
-            <div class="docs-section" data-section="goals">
-              <div class="docs-section-header">
-                <span class="docs-section-chevron open">&#9654;</span>
-                <h3 class="docs-section-title">Goals</h3>
-                <span class="docs-section-count" id="docs-goals-count">0</span>
-                <button class="btn btn-ghost btn-icon btn-sm docs-add-btn" data-section="goals" title="Add goal">+</button>
-              </div>
-              <div class="docs-section-body" id="docs-goals-list"></div>
-            </div>
-
-            <div class="docs-section" data-section="tasks">
-              <div class="docs-section-header">
-                <span class="docs-section-chevron open">&#9654;</span>
-                <h3 class="docs-section-title">Tasks</h3>
-                <span class="docs-section-count" id="docs-tasks-count">0</span>
-                <button class="btn btn-ghost btn-icon btn-sm docs-add-btn" data-section="tasks" title="Add task">+</button>
-              </div>
-              <div class="docs-section-body" id="docs-tasks-list"></div>
-            </div>
-
-            <div class="docs-section" data-section="roadmap">
-              <div class="docs-section-header">
-                <span class="docs-section-chevron open">&#9654;</span>
-                <h3 class="docs-section-title">Roadmap</h3>
-                <span class="docs-section-count" id="docs-roadmap-count">0</span>
-                <button class="btn btn-ghost btn-icon btn-sm docs-add-btn" data-section="roadmap" title="Add milestone">+</button>
-              </div>
-              <div class="docs-section-body" id="docs-roadmap-list"></div>
-            </div>
-
-            <div class="docs-section" data-section="rules">
-              <div class="docs-section-header">
-                <span class="docs-section-chevron open">&#9654;</span>
-                <h3 class="docs-section-title">Rules</h3>
-                <span class="docs-section-count" id="docs-rules-count">0</span>
-                <button class="btn btn-ghost btn-icon btn-sm docs-add-btn" data-section="rules" title="Add rule">+</button>
-              </div>
-              <div class="docs-section-body" id="docs-rules-list"></div>
-            </div>
-
-            <div class="docs-section docs-ai-section" data-section="ai-insights">
-              <div class="docs-section-header">
-                <span class="docs-section-chevron open">&#9654;</span>
-                <h3 class="docs-section-title">AI Insights</h3>
-                <button class="btn btn-ghost btn-sm" id="docs-ai-refresh" title="Refresh summaries">
-                  <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
-                    <path d="M2 7a5 5 0 019.33-2.5M12 7a5 5 0 01-9.33 2.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
-                    <path d="M11 2v3h-3M3 12V9h3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
-                  </svg>
-                  Refresh
-                </button>
-              </div>
-              <div class="docs-section-body docs-ai-body" id="docs-ai-insights">
-                <div class="ai-insights-empty">Select a workspace to see AI-generated session summaries</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Raw Editor View -->
-          <div class="docs-raw" id="docs-raw" hidden>
-            <textarea class="docs-raw-editor" id="docs-raw-editor" placeholder="# Workspace Documentation&#10;&#10;## Notes&#10;&#10;## Goals&#10;&#10;## Tasks" spellcheck="false"></textarea>
-          </div>
-        </div>
-
-        <!-- Costs Panel -->
-        <div class="costs-panel" id="costs-panel" hidden>
-          <div class="costs-header">
-            <h2 class="costs-title">Cost Dashboard</h2>
-            <div class="costs-header-actions">
-              <div class="costs-period-selector" id="costs-period-selector">
-                <button class="costs-period-btn" data-period="day">Day</button>
-                <button class="costs-period-btn active" data-period="week">Week</button>
-                <button class="costs-period-btn" data-period="month">Month</button>
-                <button class="costs-period-btn" data-period="all">All</button>
-              </div>
-              <button class="btn btn-ghost btn-sm costs-refresh-btn" id="costs-refresh-btn" title="Refresh costs">
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M14 2v4h-4M2 14v-4h4M2.5 6.5A6 6 0 0114 4M13.5 9.5A6 6 0 012 12" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
-            </div>
-          </div>
-          <div class="costs-body" id="costs-body">
-            <div class="costs-loading">Loading cost data...</div>
+          <!-- Dependencies View -->
+          <div class="board-dependencies" id="board-dependencies" hidden>
+            <div class="board-deps-empty">Add features to see the dependency graph.</div>
           </div>
         </div>
 
@@ -798,7 +518,6 @@
             </div>
           </div>
           <div class="resources-body" id="resources-body">
-            <!-- Resource cards and session table rendered by app.js -->
             <div class="resources-loading">Loading resource data...</div>
           </div>
         </div>
@@ -807,56 +526,10 @@
     </div>
 
     <!-- ═══════════════════════════════════════════ -->
-    <!-- NOTES EDITOR MODAL                          -->
-    <!-- ═══════════════════════════════════════════ -->
-    <div class="modal-overlay" id="notes-editor-overlay" hidden>
-      <div class="notes-editor-modal" role="dialog" aria-label="Notes Editor">
-        <div class="notes-editor-header">
-          <h3 class="notes-editor-title" id="notes-editor-title">Edit Note</h3>
-          <div class="notes-editor-toolbar">
-            <button class="btn btn-ghost btn-sm notes-toolbar-btn" data-action="bold" title="Bold"><strong>B</strong></button>
-            <button class="btn btn-ghost btn-sm notes-toolbar-btn" data-action="italic" title="Italic"><em>I</em></button>
-            <button class="btn btn-ghost btn-sm notes-toolbar-btn" data-action="code" title="Code">&lt;/&gt;</button>
-            <button class="btn btn-ghost btn-sm notes-toolbar-btn" data-action="link" title="Link">Link</button>
-            <button class="btn btn-ghost btn-sm notes-toolbar-btn" data-action="list" title="List">List</button>
-          </div>
-          <button class="btn btn-ghost btn-icon btn-sm" id="notes-editor-close" aria-label="Close">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-            </svg>
-          </button>
-        </div>
-        <textarea class="notes-editor-textarea" id="notes-editor-textarea" placeholder="Write your note here... Markdown is supported." spellcheck="true"></textarea>
-        <div class="notes-editor-footer">
-          <span class="notes-editor-hint">Markdown supported. Ctrl+Enter to save.</span>
-          <div class="notes-editor-actions">
-            <button class="btn btn-ghost" id="notes-editor-cancel">Cancel</button>
-            <button class="btn btn-primary" id="notes-editor-save">Save</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ═══════════════════════════════════════════ -->
     <!-- MOBILE BOTTOM TAB BAR                       -->
     <!-- ═══════════════════════════════════════════ -->
     <nav class="mobile-tab-bar" id="mobile-tab-bar" hidden>
-      <button class="mobile-tab" data-view="workspace" aria-label="Workspaces">
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-          <rect x="2" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.4"/>
-          <rect x="11" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.4"/>
-          <rect x="2" y="12" width="7" height="5" rx="1.5" stroke="currentColor" stroke-width="1.4"/>
-          <rect x="11" y="12" width="7" height="5" rx="1.5" stroke="currentColor" stroke-width="1.4"/>
-        </svg>
-        <span>Spaces</span>
-      </button>
-      <button class="mobile-tab" data-view="costs" aria-label="Costs">
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-          <path d="M10 2v16M7 4.5C7 3.67 8.34 3 10 3s3 .67 3 1.5S11.66 6 10 6 7 6.67 7 7.5 8.34 9 10 9s3 .67 3 1.5S11.66 12 10 12s-3-.67-3-1.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-        </svg>
-        <span>Costs</span>
-      </button>
-      <button class="mobile-tab" data-view="terminal" aria-label="Terminal">
+      <button class="mobile-tab active" data-view="terminal" aria-label="Terminal">
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
           <rect x="2" y="3" width="16" height="14" rx="2" stroke="currentColor" stroke-width="1.4"/>
           <path d="M5 8l3 2.5L5 13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
@@ -864,21 +537,20 @@
         </svg>
         <span>Terminal</span>
       </button>
-      <button class="mobile-tab" data-view="docs" aria-label="Docs">
+      <button class="mobile-tab" data-view="board" aria-label="Board">
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-          <path d="M5 2h7l4 4v12a1 1 0 01-1 1H5a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" stroke-width="1.4"/>
-          <path d="M12 2v4h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-          <path d="M7 10h6M7 13h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+          <rect x="2" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.4"/>
+          <rect x="11" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.4"/>
+          <rect x="2" y="12" width="7" height="5" rx="1.5" stroke="currentColor" stroke-width="1.4"/>
+          <rect x="11" y="12" width="7" height="5" rx="1.5" stroke="currentColor" stroke-width="1.4"/>
         </svg>
-        <span>Docs</span>
+        <span>Board</span>
       </button>
-      <button class="mobile-tab" data-view="more" id="mobile-more-tab" aria-label="More">
+      <button class="mobile-tab" data-view="resources" aria-label="Resources">
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-          <circle cx="10" cy="5" r="1.5" fill="currentColor"/>
-          <circle cx="10" cy="10" r="1.5" fill="currentColor"/>
-          <circle cx="10" cy="15" r="1.5" fill="currentColor"/>
+          <path d="M3 16V10h4v6H3zM8 16V6h4v10H8zM13 16V3h4v13h-4z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
         </svg>
-        <span>More</span>
+        <span>Resources</span>
       </button>
     </nav>
   </div>
@@ -1034,6 +706,24 @@
   <div class="toast-container" id="toast-container" aria-live="polite"></div>
 
   <!-- ═══════════════════════════════════════════ -->
+  <!-- FEATURE DETAIL PANEL                        -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="feature-detail-overlay" id="feature-detail-overlay" hidden>
+    <div class="feature-detail-backdrop" id="feature-detail-backdrop"></div>
+    <div class="feature-detail-panel" id="feature-detail-panel" role="dialog" aria-label="Feature Details">
+      <div class="feature-detail-header">
+        <h3 class="feature-detail-title" id="feature-detail-title"></h3>
+        <button class="btn btn-ghost btn-icon btn-sm" id="feature-detail-close" aria-label="Close">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+      <div class="feature-detail-body" id="feature-detail-body"></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
   <!-- CONTEXT MENU                                -->
   <!-- ═══════════════════════════════════════════ -->
   <div class="context-menu" id="context-menu" hidden>
@@ -1059,6 +749,7 @@
   <script src="vendor/xterm-addon-fit/xterm-addon-fit.min.js"></script>
   <script src="vendor/xterm-addon-web-links/xterm-addon-web-links.min.js"></script>
   <script src="terminal.js"></script>
+  <script src="board.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
