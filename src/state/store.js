@@ -915,19 +915,22 @@ class Store extends EventEmitter {
     // Remaining nodes with non-zero in-degree have circular dependencies
     const circular = features.filter(f => !visited.has(f.id)).map(f => f.id);
 
-    // Auto-detect complexity for features missing it
-    for (const f of features) {
-      if (!f.complexity) {
-        const fileCount = (f.filesToModify || []).length + (f.filesToCreate || []).length;
-        const hasDeps = (f.dependsOn || []).length > 0;
-        if (fileCount <= 2 && !hasDeps && (f.filesToCreate || []).length === 0) {
-          f.complexity = 'simple';
+    // Auto-detect complexity for features missing it (on copies, not originals)
+    for (const wave of waves) {
+      wave.features = wave.features.map(f => {
+        if (f.complexity) return f;
+        const copy = { ...f };
+        const fileCount = (copy.filesToModify || []).length + (copy.filesToCreate || []).length;
+        const hasDeps = (copy.dependsOn || []).length > 0;
+        if (fileCount <= 2 && !hasDeps && (copy.filesToCreate || []).length === 0) {
+          copy.complexity = 'simple';
         } else if (fileCount <= 5) {
-          f.complexity = 'medium';
+          copy.complexity = 'medium';
         } else {
-          f.complexity = 'complex';
+          copy.complexity = 'complex';
         }
-      }
+        return copy;
+      });
     }
 
     return { waves, circular, orphaned };
