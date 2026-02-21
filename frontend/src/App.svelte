@@ -108,6 +108,18 @@
     <div class="flex flex-1 overflow-hidden">
       <Sidebar />
 
+      {#if settings.sidebarCollapsed}
+        <button
+          onclick={() => settings.toggleSidebar()}
+          class="flex items-center justify-center w-6 h-full bg-bg-secondary border-r border-border-subtle text-text-muted hover:text-text-primary hover:bg-bg-elevated transition-colors shrink-0"
+          title="Expand sidebar (Ctrl+B)"
+        >
+          <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path d="M9 18l6-6-6-6"/>
+          </svg>
+        </button>
+      {/if}
+
       <main class="flex-1 overflow-hidden">
         {#if activeTab === 'terminal'}
           <TerminalGrid />

@@ -1,10 +1,17 @@
 <script>
+  import { onMount } from 'svelte';
   import { workspacesStore } from '$lib/stores/workspaces.svelte.js';
   import { sessionsStore } from '$lib/stores/sessions.svelte.js';
   import { settings } from '$lib/stores/settings.svelte.js';
   import { stringToColor, timeAgo } from '$lib/utils.js';
   import ConfirmDialog from '../shared/ConfirmDialog.svelte';
   import ContextMenu from '../shared/ContextMenu.svelte';
+
+  onMount(() => {
+    if (window.innerWidth < 768 && !settings.sidebarCollapsed) {
+      settings.toggleSidebar();
+    }
+  });
 
   let showCreateWorkspace = $state(false);
   let newWorkspaceName = $state('');

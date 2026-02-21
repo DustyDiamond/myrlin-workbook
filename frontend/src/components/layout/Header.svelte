@@ -1,5 +1,6 @@
 <script>
   import { settings } from '$lib/stores/settings.svelte.js';
+  import { auth } from '$lib/stores/auth.svelte.js';
   import { api } from '$lib/api.js';
   import { formatCost } from '$lib/utils.js';
 
@@ -26,18 +27,20 @@
   });
 
   async function loadStats() {
+    if (!auth.token) return;
     try {
       const data = await api('GET', '/api/stats');
       runningSessions = data.runningSessions || 0;
       totalSessions = data.totalSessions || 0;
-    } catch { /* ignore */ }
+    } catch { /* api() handles 401 → logout */ }
   }
 
   async function loadCost() {
+    if (!auth.token) return;
     try {
       const data = await api('GET', '/api/cost/dashboard?period=day');
       dailyCost = data.totalCost || 0;
-    } catch { /* ignore */ }
+    } catch { /* api() handles 401 → logout */ }
   }
 
   function handleThemeClick(themeId) {
