@@ -225,7 +225,12 @@ function readDocs(workspaceId) {
 function writeDocs(workspaceId, content) {
   ensureDocsDir();
   const filePath = getDocsPath(workspaceId);
-  fs.writeFileSync(filePath, content, 'utf8');
+  // Atomic write: write to temp file, then rename over the target.
+  // If the process is killed mid-write, the temp file is lost but
+  // the original docs file survives intact.
+  const tmpFile = filePath + '.tmp';
+  fs.writeFileSync(tmpFile, content, 'utf8');
+  fs.renameSync(tmpFile, filePath);
 }
 
 /**

@@ -594,6 +594,38 @@ const TOOLS = [
   },
 ];
 
+// ─── Validation Helpers ──────────────────────────────────
+
+const VALID_SECTIONS = ['notes', 'goals', 'tasks', 'roadmap', 'rules'];
+const VALID_TOGGLE_SECTIONS = ['goals', 'tasks', 'roadmap'];
+const VALID_STATUSES = ['backlog', 'planned', 'in-progress', 'review', 'done'];
+const VALID_PRIORITIES = ['low', 'normal', 'high', 'urgent'];
+const VALID_COMPLEXITIES = ['simple', 'medium', 'complex'];
+
+function requireString(args, field) {
+  if (typeof args[field] !== 'string' || !args[field].trim()) {
+    throw new Error(`${field} must be a non-empty string`);
+  }
+}
+
+function requireNumber(args, field) {
+  if (typeof args[field] !== 'number' || !Number.isFinite(args[field])) {
+    throw new Error(`${field} must be a number`);
+  }
+}
+
+function validateEnum(args, field, allowed) {
+  if (args[field] !== undefined && !allowed.includes(args[field])) {
+    throw new Error(`${field} must be one of: ${allowed.join(', ')}`);
+  }
+}
+
+function validateArray(args, field) {
+  if (args[field] !== undefined && !Array.isArray(args[field])) {
+    throw new Error(`${field} must be an array`);
+  }
+}
+
 // ─── Tool Handlers ────────────────────────────────────────
 
 async function handleGetWorkspaceInfo(args) {
@@ -614,6 +646,9 @@ async function handleGetWorkspaceDocs(args) {
 }
 
 async function handleAddDocItem(args) {
+  requireString(args, 'section');
+  requireString(args, 'text');
+  validateEnum(args, 'section', VALID_SECTIONS);
   const id = await resolveWorkspaceId(args.workspaceId);
   const { section, text, status } = args;
 
@@ -631,6 +666,9 @@ async function handleAddDocItem(args) {
 }
 
 async function handleToggleDocItem(args) {
+  requireString(args, 'section');
+  requireNumber(args, 'index');
+  validateEnum(args, 'section', VALID_TOGGLE_SECTIONS);
   const id = await resolveWorkspaceId(args.workspaceId);
   const { section, index } = args;
   const data = await apiRequest(
@@ -641,6 +679,9 @@ async function handleToggleDocItem(args) {
 }
 
 async function handleRemoveDocItem(args) {
+  requireString(args, 'section');
+  requireNumber(args, 'index');
+  validateEnum(args, 'section', VALID_SECTIONS);
   const id = await resolveWorkspaceId(args.workspaceId);
   const { section, index } = args;
   const data = await apiRequest(
@@ -661,6 +702,15 @@ async function handleListFeatures(args) {
 }
 
 async function handleCreateFeature(args) {
+  requireString(args, 'name');
+  validateEnum(args, 'status', VALID_STATUSES);
+  validateEnum(args, 'priority', VALID_PRIORITIES);
+  validateEnum(args, 'complexity', VALID_COMPLEXITIES);
+  validateArray(args, 'filesToModify');
+  validateArray(args, 'filesToCreate');
+  validateArray(args, 'contextFiles');
+  validateArray(args, 'acceptanceCriteria');
+  validateArray(args, 'dependsOn');
   const id = await resolveWorkspaceId(args.workspaceId);
   const {
     name, description, status, priority,
@@ -690,6 +740,16 @@ async function handleCreateFeature(args) {
 }
 
 async function handleUpdateFeature(args) {
+  requireString(args, 'featureId');
+  validateEnum(args, 'status', VALID_STATUSES);
+  validateEnum(args, 'priority', VALID_PRIORITIES);
+  validateEnum(args, 'complexity', VALID_COMPLEXITIES);
+  validateArray(args, 'filesToModify');
+  validateArray(args, 'filesToCreate');
+  validateArray(args, 'contextFiles');
+  validateArray(args, 'acceptanceCriteria');
+  validateArray(args, 'dependsOn');
+  validateArray(args, 'reviewNotes');
   const { featureId, ...fields } = args;
   const body = {};
   if (fields.name) body.name = fields.name;

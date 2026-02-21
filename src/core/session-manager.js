@@ -63,8 +63,10 @@ function launchSession(sessionId) {
 
     let child;
     if (process.platform === 'win32') {
-      // Windows: open a new console window via `cmd /c start cmd /k`
-      child = spawn('cmd', ['/c', 'start', 'cmd', '/k', command], {
+      // Windows: open a new console window via `cmd /c start "" cmd /k ...`
+      // The empty "" is the window title — required by `start` to avoid
+      // treating a quoted command path as the title instead of the executable.
+      child = spawn('cmd', ['/c', `start "" cmd /k ${command}`], {
         detached: true,
         stdio: 'ignore',
         cwd: workingDir,

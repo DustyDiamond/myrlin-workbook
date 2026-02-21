@@ -267,7 +267,15 @@ class Store extends EventEmitter {
     for (const sid of ws.sessions) {
       delete this._state.sessions[sid];
     }
+    // Remove associated features
+    for (const [fid, feature] of Object.entries(this._state.features)) {
+      if (feature.workspaceId === id) {
+        delete this._state.features[fid];
+      }
+    }
     delete this._state.workspaces[id];
+    // Remove from workspaceOrder
+    this._state.workspaceOrder = this._state.workspaceOrder.filter(oid => oid !== id);
     if (this._state.activeWorkspace === id) {
       const remaining = Object.keys(this._state.workspaces);
       this._state.activeWorkspace = remaining.length > 0 ? remaining[0] : null;
@@ -523,9 +531,25 @@ class Store extends EventEmitter {
    * @param {string[]} orderedIds - Mixed array of workspace IDs and group IDs
    */
   reorderWorkspaces(orderedIds) {
-    this._state.workspaceOrder = orderedIds;
+    if (!Array.isArray(orderedIds)) return;
+    const validIds = new Set([
+      ...Object.keys(this._state.workspaces),
+      ...Object.keys(this._state.workspaceGroups),
+    ]);
+    // Filter to valid, deduplicated IDs in the requested order
+    const seen = new Set();
+    const filtered = orderedIds.filter(id => {
+      if (!validIds.has(id) || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+    // Append any valid IDs that were missing from the input
+    for (const id of validIds) {
+      if (!seen.has(id)) filtered.push(id);
+    }
+    this._state.workspaceOrder = filtered;
     this.save();
-    this.emit('workspaces:reordered', orderedIds);
+    this.emit('workspaces:reordered', filtered);
   }
 
   /**
