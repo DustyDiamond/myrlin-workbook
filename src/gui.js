@@ -91,7 +91,7 @@ if (process.argv.includes('--demo')) {
 // ─── Start Server ──────────────────────────────────────────
 
 const port = parseInt(process.env.PORT, 10) || 3456;
-const host = process.env.CWM_HOST || '127.0.0.1';
+const host = process.env.CWM_HOST || '0.0.0.0';
 const sslCert = process.env.CWM_SSL_CERT;
 const sslKey = process.env.CWM_SSL_KEY;
 const sslCa = process.env.CWM_SSL_CA;

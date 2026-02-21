@@ -32,7 +32,9 @@ const os = require('os');
 
 const CWM_HOST = process.env.CWM_HOST || 'localhost';
 const CWM_PORT = parseInt(process.env.CWM_PORT, 10) || 3456;
-const CWM_PROTOCOL = process.env.CWM_PROTOCOL || 'https';
+// Default to http unless CWM_PROTOCOL or CWM_SSL_CERT is set.
+// The server (gui.js) only uses HTTPS when CWM_SSL_CERT + CWM_SSL_KEY are provided.
+const CWM_PROTOCOL = process.env.CWM_PROTOCOL || (process.env.CWM_SSL_CERT ? 'https' : 'http');
 
 const HOME_CONFIG_FILE = path.join(os.homedir(), '.myrlin', 'config.json');
 const LOCAL_CONFIG_FILE = path.join(__dirname, '..', '..', 'state', 'config.json');

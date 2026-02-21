@@ -93,18 +93,10 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// CORS headers - restrict to localhost origins only
+// CORS headers - allow any origin (server is auth-protected)
 app.use((req, res, next) => {
   const origin = req.headers.origin || '';
-  const allowedOrigins = [
-    'http://localhost',
-    'http://127.0.0.1',
-    'https://localhost',
-    'https://127.0.0.1',
-  ];
-  // Allow any localhost port (e.g. http://localhost:3456, http://localhost:5173)
-  const isAllowed = allowedOrigins.some(allowed => origin === allowed || origin.startsWith(allowed + ':'));
-  if (isAllowed) {
+  if (origin) {
     res.setHeader('Access-Control-Allow-Origin', origin);
   }
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -121,7 +113,7 @@ app.use((req, res, next) => {
   // Content Security Policy - allow self + inline styles (for dynamic UI) + WebSocket
   res.setHeader('Content-Security-Policy',
     "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; " +
-    "connect-src 'self' ws://localhost:* wss://localhost:* ws://127.0.0.1:* wss://127.0.0.1:*; " +
+    "connect-src 'self' ws: wss:; " +
     "img-src 'self' data:; font-src 'self' https://fonts.gstatic.com; " +
     "style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com;"
   );
@@ -4997,7 +4989,7 @@ app.get('/api/browse', requireAuth, (req, res) => {
 // Reference to PTY manager for cleanup on shutdown
 let _ptyManager = null;
 
-function startServer(port = 3456, host = '127.0.0.1', externalServer = null) {
+function startServer(port = 3456, host = '0.0.0.0', externalServer = null) {
   // Wire store events to SSE before accepting connections
   attachStoreEvents();
 
