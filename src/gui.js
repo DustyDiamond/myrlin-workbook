@@ -90,11 +90,14 @@ if (process.argv.includes('--demo')) {
 
 // ─── Start Server ──────────────────────────────────────────
 
+const path = require('path');
+
 const port = parseInt(process.env.PORT, 10) || 3456;
 const host = process.env.CWM_HOST || '0.0.0.0';
-const sslCert = process.env.CWM_SSL_CERT;
-const sslKey = process.env.CWM_SSL_KEY;
-const sslCa = process.env.CWM_SSL_CA;
+const CERT_DIR = '/home/dusty/git/homelab/pipelines/k3s-deploy/certificates';
+const sslCert = process.env.CWM_SSL_CERT || path.join(CERT_DIR, 'homelab-wildcard-v2.crt');
+const sslKey = process.env.CWM_SSL_KEY || path.join(CERT_DIR, 'homelab-wildcard-v2.key');
+const sslCa = process.env.CWM_SSL_CA || path.join(CERT_DIR, 'homelab-ca-v2.crt');
 
 let server;
 if (sslCert && sslKey) {
