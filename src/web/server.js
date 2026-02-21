@@ -1897,7 +1897,7 @@ app.get('/api/quota-overview', requireAuth, (req, res) => {
       sessions: sessionQuotas,
     });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to get quota overview: ' + err.message });
+    return res.status(500).json({ error: 'Failed to get quota overview: ' + err.message });
   }
 });
 
@@ -2090,7 +2090,7 @@ app.get('/api/usage/quota', requireAuth, (req, res) => {
     const data = calculateUsageQuota();
     res.json(data);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to calculate usage quota: ' + err.message });
+    return res.status(500).json({ error: 'Failed to calculate usage quota: ' + err.message });
   }
 });
 
@@ -2284,7 +2284,7 @@ app.get('/api/workspaces/:id/analytics', requireAuth, (req, res) => {
       topSessions: sessionCosts.slice(0, 5),
     });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to get analytics: ' + err.message });
+    return res.status(500).json({ error: 'Failed to get analytics: ' + err.message });
   }
 });
 
@@ -2519,7 +2519,7 @@ app.get('/api/cost/dashboard', requireAuth, (req, res) => {
       sessions: allSessionCosts,
     });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to get cost dashboard: ' + err.message });
+    return res.status(500).json({ error: 'Failed to get cost dashboard: ' + err.message });
   }
 });
 
@@ -4089,7 +4089,7 @@ app.get('/api/resources', requireAuth, async (req, res) => {
       totalClaudeCpuPercent: Math.round(totalClaudeCpuPercent * 10) / 10,
     });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to get resources: ' + err.message });
+    return res.status(500).json({ error: 'Failed to get resources: ' + err.message });
   }
 });
 
@@ -4107,7 +4107,7 @@ app.post('/api/resources/kill-process', requireAuth, (req, res) => {
     process.kill(pid, 'SIGTERM');
     res.json({ success: true, message: `Sent SIGTERM to PID ${pid}` });
   } catch (err) {
-    res.status(500).json({ error: `Failed to kill PID ${pid}: ${err.message}` });
+    return res.status(500).json({ error: `Failed to kill PID ${pid}: ${err.message}` });
   }
 });
 
@@ -4192,7 +4192,7 @@ app.get('/api/git/status', requireAuth, async (req, res) => {
     gitStatusCache.set(dir, { data: result, ts: Date.now() });
     res.json(result);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -4212,7 +4212,7 @@ app.get('/api/git/branches', requireAuth, async (req, res) => {
     const current = (await gitExec(['rev-parse', '--abbrev-ref', 'HEAD'], dir)).trim();
     res.json({ local, remote, current });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -4245,7 +4245,7 @@ app.get('/api/git/worktrees', requireAuth, async (req, res) => {
     if (current.path) worktrees.push(current);
     res.json({ repoRoot: root, worktrees });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -4274,7 +4274,7 @@ app.post('/api/git/worktrees', requireAuth, async (req, res) => {
     await gitExec(args, root);
     res.status(201).json({ success: true, path: targetPath, branch, repoRoot: root });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -4287,7 +4287,7 @@ app.delete('/api/git/worktrees', requireAuth, async (req, res) => {
     await gitExec(['worktree', 'remove', wtPath], root);
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -4331,7 +4331,7 @@ app.get('/api/version', requireAuth, async (req, res) => {
       remoteVersion,
     });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to check version: ' + err.message });
+    return res.status(500).json({ error: 'Failed to check version: ' + err.message });
   }
 });
 
@@ -4522,7 +4522,7 @@ app.post('/api/tunnels', requireAuth, async (req, res) => {
     res.status(201).json({ id: tunnel.id, port: tunnel.port, url: tunnel.url, pid: tunnel.pid, label: tunnel.label, createdAt: tunnel.createdAt });
     broadcastSSE('tunnel:opened', { id: tunnel.id, port: tunnel.port, url: tunnel.url });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to start tunnel: ' + err.message });
+    return res.status(500).json({ error: 'Failed to start tunnel: ' + err.message });
   }
 });
 
@@ -4539,7 +4539,7 @@ app.delete('/api/tunnels/:id', requireAuth, (req, res) => {
     _tunnels.delete(req.params.id);
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to kill tunnel: ' + err.message });
+    return res.status(500).json({ error: 'Failed to kill tunnel: ' + err.message });
   }
 });
 
