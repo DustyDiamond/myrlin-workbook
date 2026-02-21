@@ -4,12 +4,18 @@
   import KanbanColumn from './KanbanColumn.svelte';
   import DependencyView from './DependencyView.svelte';
   import FeatureDialog from './FeatureDialog.svelte';
+  import FeatureDetail from './FeatureDetail.svelte';
   import ConfirmDialog from '../shared/ConfirmDialog.svelte';
   import { stringToColor } from '$lib/utils.js';
 
   let showCreateDialog = $state(false);
   let editingFeature = $state(null);
   let deletingFeature = $state(null);
+  let selectedFeature = $state(null);
+
+  function handleSelect(feature) {
+    selectedFeature = feature;
+  }
 
   function handleDrop(featureId, newStatus) {
     boardStore.moveToStatus(featureId, newStatus);
@@ -86,6 +92,7 @@
           onDrop={handleDrop}
           onEdit={handleEdit}
           onDelete={handleDelete}
+          onSelect={handleSelect}
         />
       {/each}
     </div>
@@ -107,6 +114,14 @@
       confirmText="Delete"
       onconfirm={confirmDelete}
       oncancel={() => deletingFeature = null}
+    />
+  {/if}
+
+  {#if selectedFeature}
+    <FeatureDetail
+      feature={selectedFeature}
+      onclose={() => selectedFeature = null}
+      onEdit={(f) => { selectedFeature = null; handleEdit(f); }}
     />
   {/if}
 </div>

@@ -1,7 +1,7 @@
 <script>
   import FeatureCard from './FeatureCard.svelte';
 
-  let { column, onDrop, onEdit, onDelete } = $props();
+  let { column, onDrop, onEdit, onDelete, onSelect } = $props();
 
   let dragOver = $state(false);
 
@@ -50,7 +50,7 @@
   <!-- Cards -->
   <div class="flex-1 flex flex-col gap-2 p-2 overflow-y-auto min-h-[100px]">
     {#each column.features as feature (feature.id)}
-      <FeatureCard {feature} onEdit={() => onEdit?.(feature)} onDelete={() => onDelete?.(feature)} />
+      <FeatureCard {feature} onEdit={() => onEdit?.(feature)} onDelete={() => onDelete?.(feature)} onSelect={() => onSelect?.(feature)} />
     {/each}
   </div>
 </div>

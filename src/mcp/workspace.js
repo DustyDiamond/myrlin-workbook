@@ -442,6 +442,16 @@ const TOOLS = [
           type: 'number',
           description: 'Max retry count before escalation. Defaults to 3.',
         },
+        executeNotes: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Execution notes from the /execute skill.',
+        },
+        manualNotes: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Manual review notes from the user.',
+        },
       },
       required: ['name'],
       additionalProperties: false,
@@ -526,6 +536,16 @@ const TOOLS = [
         maxRetries: {
           type: 'number',
           description: 'Updated max retries.',
+        },
+        executeNotes: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Updated execution notes from the /execute skill.',
+        },
+        manualNotes: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Updated manual review notes from the user.',
         },
       },
       required: ['featureId'],
@@ -711,11 +731,14 @@ async function handleCreateFeature(args) {
   validateArray(args, 'contextFiles');
   validateArray(args, 'acceptanceCriteria');
   validateArray(args, 'dependsOn');
+  validateArray(args, 'executeNotes');
+  validateArray(args, 'manualNotes');
   const id = await resolveWorkspaceId(args.workspaceId);
   const {
     name, description, status, priority,
     filesToModify, filesToCreate, contextFiles, acceptanceCriteria,
     dependsOn, complexity, wave, specDocument, maxRetries,
+    executeNotes, manualNotes,
   } = args;
   const body = { name };
   if (description) body.description = description;
@@ -730,6 +753,8 @@ async function handleCreateFeature(args) {
   if (wave !== undefined && wave !== null) body.wave = wave;
   if (specDocument) body.specDocument = specDocument;
   if (maxRetries !== undefined) body.maxRetries = maxRetries;
+  if (executeNotes) body.executeNotes = executeNotes;
+  if (manualNotes) body.manualNotes = manualNotes;
 
   const data = await apiRequest(
     'POST',
@@ -750,6 +775,8 @@ async function handleUpdateFeature(args) {
   validateArray(args, 'acceptanceCriteria');
   validateArray(args, 'dependsOn');
   validateArray(args, 'reviewNotes');
+  validateArray(args, 'executeNotes');
+  validateArray(args, 'manualNotes');
   const { featureId, ...fields } = args;
   const body = {};
   if (fields.name) body.name = fields.name;
@@ -767,6 +794,8 @@ async function handleUpdateFeature(args) {
   if (fields.reviewNotes) body.reviewNotes = fields.reviewNotes;
   if (fields.attempts !== undefined) body.attempts = fields.attempts;
   if (fields.maxRetries !== undefined) body.maxRetries = fields.maxRetries;
+  if (fields.executeNotes) body.executeNotes = fields.executeNotes;
+  if (fields.manualNotes) body.manualNotes = fields.manualNotes;
 
   const data = await apiRequest(
     'PUT',

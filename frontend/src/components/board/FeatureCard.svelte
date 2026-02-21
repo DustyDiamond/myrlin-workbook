@@ -1,7 +1,30 @@
 <script>
+  import { onDestroy } from 'svelte';
   import { stringToColor } from '$lib/utils.js';
 
-  let { feature, onEdit, onDelete } = $props();
+  let { feature, onEdit, onDelete, onSelect } = $props();
+
+  let clickTimer = null;
+
+  onDestroy(() => {
+    if (clickTimer) clearTimeout(clickTimer);
+  });
+
+  function handleClick() {
+    if (clickTimer) return; // double-click pending
+    clickTimer = setTimeout(() => {
+      clickTimer = null;
+      onSelect?.(feature);
+    }, 250);
+  }
+
+  function handleDblClick() {
+    if (clickTimer) {
+      clearTimeout(clickTimer);
+      clickTimer = null;
+    }
+    onEdit?.(feature);
+  }
 
   function handleDragStart(e) {
     e.dataTransfer.setData('text/plain', feature.id);
@@ -22,7 +45,8 @@
          hover:border-accent/50 transition-colors active:cursor-grabbing"
   draggable="true"
   ondragstart={handleDragStart}
-  ondblclick={() => onEdit?.(feature)}
+  onclick={handleClick}
+  ondblclick={handleDblClick}
   role="listitem"
 >
   <div class="flex items-start gap-2">

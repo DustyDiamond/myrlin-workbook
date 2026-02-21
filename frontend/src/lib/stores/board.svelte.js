@@ -97,6 +97,20 @@ function createBoardStore() {
       }
     },
 
+    async addManualNote(featureId, text) {
+      const feature = features.find(f => f.id === featureId);
+      if (!feature) return;
+      const timestamp = new Date().toISOString();
+      const note = `[${timestamp}] ${text}`;
+      const updated = [...(feature.manualNotes || []), note];
+      const data = await api('PUT', `/api/features/${featureId}`, {
+        manualNotes: updated,
+      });
+      if (data.feature) {
+        features = features.map(f => f.id === featureId ? data.feature : f);
+      }
+    },
+
     /**
      * Handle SSE feature events.
      */
