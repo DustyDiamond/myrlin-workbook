@@ -34,6 +34,7 @@ const LOCAL_CONFIG_FILE = path.join(LOCAL_CONFIG_DIR, 'config.json');
 // Simple in-memory rate limiter: max 5 login attempts per IP per 60 seconds
 const LOGIN_RATE_LIMIT = 5;
 const LOGIN_RATE_WINDOW_MS = 60 * 1000; // 1 minute
+const LOGIN_RATE_MAX_ENTRIES = 10000; // Cap Map size to prevent memory exhaustion
 const loginAttempts = new Map(); // IP -> { count, resetAt }
 
 /**
@@ -46,6 +47,11 @@ function isRateLimited(ip) {
   const entry = loginAttempts.get(ip);
 
   if (!entry || now > entry.resetAt) {
+    // Evict oldest entries if Map is at capacity
+    if (loginAttempts.size >= LOGIN_RATE_MAX_ENTRIES) {
+      const firstKey = loginAttempts.keys().next().value;
+      loginAttempts.delete(firstKey);
+    }
     // Window expired or new IP - start fresh
     loginAttempts.set(ip, { count: 1, resetAt: now + LOGIN_RATE_WINDOW_MS });
     return false;
@@ -107,7 +113,7 @@ function savePasswordToFile(dir, filePath, password) {
       }
     } catch (_) {}
     config.password = password;
-    fs.writeFileSync(filePath, JSON.stringify(config, null, 2), 'utf-8');
+    fs.writeFileSync(filePath, JSON.stringify(config, null, 2), { encoding: 'utf-8', mode: 0o600 });
   } catch (err) {
     // Non-fatal: password still works in memory for this session
   }
