@@ -3769,18 +3769,23 @@ function broadcastSSE(eventType, data) {
   // Send as unnamed event so EventSource.onmessage fires (named events require addEventListener per type)
   const message = `data: ${payload}\n\n`;
 
+  const dead = [];
   for (const client of sseClients) {
-    // Skip and remove clients whose writable stream has already ended
+    // Skip clients whose writable stream has already ended
     if (client.writableEnded) {
-      sseClients.delete(client);
+      dead.push(client);
       continue;
     }
     try {
       client.write(message);
     } catch (_) {
-      // Client may have disconnected; remove it
-      sseClients.delete(client);
+      // Client may have disconnected
+      dead.push(client);
     }
+  }
+  // Remove dead clients after iteration to avoid mutating Set during for...of
+  for (const client of dead) {
+    sseClients.delete(client);
   }
 }
 
