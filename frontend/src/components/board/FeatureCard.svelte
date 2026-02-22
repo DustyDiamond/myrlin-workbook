@@ -1,34 +1,35 @@
 <script>
-  import { onDestroy } from 'svelte';
   import { stringToColor } from '$lib/utils.js';
+  import Icon from '../shared/Icon.svelte';
 
   let { feature, onEdit, onDelete, onSelect } = $props();
 
-  let clickTimer = null;
-
-  onDestroy(() => {
-    if (clickTimer) clearTimeout(clickTimer);
-  });
-
-  function handleClick() {
-    if (clickTimer) return; // double-click pending
-    clickTimer = setTimeout(() => {
-      clickTimer = null;
-      onSelect?.(feature);
-    }, 250);
-  }
-
-  function handleDblClick() {
-    if (clickTimer) {
-      clearTimeout(clickTimer);
-      clickTimer = null;
-    }
-    onEdit?.(feature);
-  }
+  let showContextMenu = $state(false);
+  let menuX = $state(0);
+  let menuY = $state(0);
 
   function handleDragStart(e) {
     e.dataTransfer.setData('text/plain', feature.id);
     e.dataTransfer.effectAllowed = 'move';
+  }
+
+  function handleContextMenu(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    menuX = e.clientX;
+    menuY = e.clientY;
+    showContextMenu = true;
+  }
+
+  function closeMenu() {
+    showContextMenu = false;
+  }
+
+  function menuAction(action) {
+    showContextMenu = false;
+    if (action === 'view') onSelect?.(feature);
+    else if (action === 'edit') onEdit?.(feature);
+    else if (action === 'delete') onDelete?.(feature);
   }
 
   const priorityColors = {
@@ -39,29 +40,56 @@
   };
 </script>
 
+<svelte:window onclick={closeMenu} />
+
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
   class="group p-2.5 bg-bg-primary rounded-md border border-border-subtle cursor-grab
-         hover:border-accent/50 transition-colors active:cursor-grabbing"
+         hover:border-accent/50 transition-colors active:cursor-grabbing relative"
   draggable="true"
   ondragstart={handleDragStart}
-  onclick={handleClick}
-  ondblclick={handleDblClick}
+  oncontextmenu={handleContextMenu}
   role="listitem"
 >
-  <div class="flex items-start gap-2">
-    <span class="text-xs font-medium text-text-primary leading-tight flex-1">{feature.name}</span>
+  <div class="flex items-start gap-1.5">
+    <!-- Feature name — click opens detail drawer -->
+    <button
+      onclick={(e) => { e.stopPropagation(); onSelect?.(feature); }}
+      class="text-xs font-medium text-text-primary leading-tight flex-1 text-left
+             hover:text-accent hover:underline transition-colors cursor-pointer"
+      draggable="false"
+    >{feature.name}</button>
+
     {#if feature.priority && feature.priority !== 'normal'}
-      <span class="text-[10px] font-mono {priorityColors[feature.priority] || ''}">
+      <span class="text-[10px] font-mono {priorityColors[feature.priority] || ''} shrink-0 mt-0.5">
         {feature.priority}
       </span>
     {/if}
-    <!-- Delete button (visible on hover) -->
-    <button
-      onclick={(e) => { e.stopPropagation(); onDelete?.(feature); }}
-      class="opacity-0 group-hover:opacity-100 text-text-muted hover:text-th-red text-xs transition-opacity shrink-0"
-      title="Delete feature"
-    >x</button>
+
+    <!-- Action icons (visible on hover) -->
+    <div class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+      <!-- Expand / detail button -->
+      <button
+        onclick={(e) => { e.stopPropagation(); onSelect?.(feature); }}
+        class="w-6 h-6 flex items-center justify-center rounded text-text-muted hover:text-accent hover:bg-accent/10 transition-colors"
+        title="View details"
+        draggable="false"
+      ><Icon name="box-arrow-up-right" size="12" /></button>
+      <!-- Edit button -->
+      <button
+        onclick={(e) => { e.stopPropagation(); onEdit?.(feature); }}
+        class="w-6 h-6 flex items-center justify-center rounded text-text-muted hover:text-accent hover:bg-accent/10 transition-colors"
+        title="Edit feature"
+        draggable="false"
+      ><Icon name="pencil" size="12" /></button>
+      <!-- Delete button -->
+      <button
+        onclick={(e) => { e.stopPropagation(); onDelete?.(feature); }}
+        class="w-6 h-6 flex items-center justify-center rounded text-text-muted hover:text-th-red hover:bg-th-red/10 transition-colors"
+        title="Delete feature"
+        draggable="false"
+      ><Icon name="x-lg" size="12" /></button>
+    </div>
   </div>
 
   {#if feature.description}
@@ -83,3 +111,29 @@
     {/if}
   </div>
 </div>
+
+<!-- Right-click context menu -->
+{#if showContextMenu}
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <div
+    class="fixed z-[999] bg-bg-elevated border border-border-default rounded-md shadow-lg py-1 min-w-[160px]"
+    style:left="{menuX}px"
+    style:top="{menuY}px"
+    onclick={(e) => e.stopPropagation()}
+  >
+    <button
+      onclick={() => menuAction('view')}
+      class="w-full px-3 py-1.5 text-xs text-text-primary hover:bg-accent/10 text-left flex items-center gap-2"
+    ><Icon name="eye" size="14" /> View Details</button>
+    <button
+      onclick={() => menuAction('edit')}
+      class="w-full px-3 py-1.5 text-xs text-text-primary hover:bg-accent/10 text-left flex items-center gap-2"
+    ><Icon name="pencil" size="14" /> Edit</button>
+    <div class="border-t border-border-subtle my-1"></div>
+    <button
+      onclick={() => menuAction('delete')}
+      class="w-full px-3 py-1.5 text-xs text-th-red hover:bg-th-red/10 text-left flex items-center gap-2"
+    ><Icon name="x-lg" size="14" /> Delete</button>
+  </div>
+{/if}

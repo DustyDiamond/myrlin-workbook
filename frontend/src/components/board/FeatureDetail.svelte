@@ -1,6 +1,7 @@
 <script>
   import { boardStore } from '$lib/stores/board.svelte.js';
   import { stringToColor } from '$lib/utils.js';
+  import Icon from '../shared/Icon.svelte';
 
   let { feature, onclose, onEdit } = $props();
 
@@ -88,8 +89,9 @@
       </div>
       <button
         onclick={onclose}
-        class="text-text-muted hover:text-text-primary text-lg leading-none shrink-0 mt-1"
-      >&times;</button>
+        class="w-7 h-7 flex items-center justify-center rounded text-text-muted hover:text-text-primary hover:bg-bg-elevated transition-colors shrink-0 mt-0.5"
+        title="Close"
+      ><Icon name="x-lg" size="14" /></button>
     </div>
 
     <!-- Scrollable Content -->
@@ -166,7 +168,7 @@
           <ul class="space-y-1">
             {#each feature.acceptanceCriteria as criterion}
               <li class="flex items-start gap-2 text-xs text-text-primary">
-                <span class="text-text-muted shrink-0 mt-0.5">&#9679;</span>
+                <span class="text-text-muted shrink-0 mt-0.5"><Icon name="circle-fill" size="6" /></span>
                 <span>{criterion}</span>
               </li>
             {/each}
