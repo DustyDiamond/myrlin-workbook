@@ -452,6 +452,11 @@ const TOOLS = [
           items: { type: 'string' },
           description: 'Manual review notes from the user.',
         },
+        rejectNotes: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'User rejection feedback notes.',
+        },
       },
       required: ['name'],
       additionalProperties: false,
@@ -546,6 +551,11 @@ const TOOLS = [
           type: 'array',
           items: { type: 'string' },
           description: 'Updated manual review notes from the user.',
+        },
+        rejectNotes: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Updated user rejection feedback notes.',
         },
       },
       required: ['featureId'],
@@ -733,12 +743,13 @@ async function handleCreateFeature(args) {
   validateArray(args, 'dependsOn');
   validateArray(args, 'executeNotes');
   validateArray(args, 'manualNotes');
+  validateArray(args, 'rejectNotes');
   const id = await resolveWorkspaceId(args.workspaceId);
   const {
     name, description, status, priority,
     filesToModify, filesToCreate, contextFiles, acceptanceCriteria,
     dependsOn, complexity, wave, specDocument, maxRetries,
-    executeNotes, manualNotes,
+    executeNotes, manualNotes, rejectNotes,
   } = args;
   const body = { name };
   if (description) body.description = description;
@@ -755,6 +766,7 @@ async function handleCreateFeature(args) {
   if (maxRetries !== undefined) body.maxRetries = maxRetries;
   if (executeNotes) body.executeNotes = executeNotes;
   if (manualNotes) body.manualNotes = manualNotes;
+  if (rejectNotes) body.rejectNotes = rejectNotes;
 
   const data = await apiRequest(
     'POST',
@@ -777,6 +789,7 @@ async function handleUpdateFeature(args) {
   validateArray(args, 'reviewNotes');
   validateArray(args, 'executeNotes');
   validateArray(args, 'manualNotes');
+  validateArray(args, 'rejectNotes');
   const { featureId, ...fields } = args;
   const body = {};
   if (fields.name) body.name = fields.name;
@@ -796,6 +809,7 @@ async function handleUpdateFeature(args) {
   if (fields.maxRetries !== undefined) body.maxRetries = fields.maxRetries;
   if (fields.executeNotes) body.executeNotes = fields.executeNotes;
   if (fields.manualNotes) body.manualNotes = fields.manualNotes;
+  if (fields.rejectNotes) body.rejectNotes = fields.rejectNotes;
 
   const data = await apiRequest(
     'PUT',

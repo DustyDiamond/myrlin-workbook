@@ -3425,7 +3425,7 @@ app.post('/api/workspaces/:id/features', requireAuth, (req, res) => {
     name, description, status, priority, sessionIds,
     filesToModify, filesToCreate, contextFiles, acceptanceCriteria,
     dependsOn, complexity, wave, specDocument, reviewNotes, attempts, maxRetries,
-    executeNotes, manualNotes,
+    executeNotes, manualNotes, rejectNotes,
   } = req.body || {};
   if (!name || typeof name !== 'string' || name.trim().length === 0) {
     return res.status(400).json({ error: 'Name is required' });
@@ -3458,6 +3458,7 @@ app.post('/api/workspaces/:id/features', requireAuth, (req, res) => {
   if (maxRetries !== undefined) params.maxRetries = maxRetries;
   if (executeNotes) params.executeNotes = executeNotes;
   if (manualNotes) params.manualNotes = manualNotes;
+  if (rejectNotes) params.rejectNotes = rejectNotes;
 
   const feature = store.createFeature(params);
   res.json({ feature });

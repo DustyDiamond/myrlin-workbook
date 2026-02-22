@@ -2,11 +2,12 @@
   import { boardStore } from '$lib/stores/board.svelte.js';
   import { stringToColor } from '$lib/utils.js';
   import Icon from '../shared/Icon.svelte';
+  import Button from '../shared/Button.svelte';
 
   let { feature, onclose, onEdit } = $props();
 
-  let noteText = $state('');
-  let saving = $state(false);
+  let showRejectForm = $state(false);
+  let rejectReason = $state('');
 
   const statusColors = {
     backlog: 'bg-surface-2 text-text-muted',
@@ -30,19 +31,14 @@
       + ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
   }
 
-  async function handleAddNote() {
-    if (!noteText.trim()) return;
-    saving = true;
-    try {
-      await boardStore.addManualNote(feature.id, noteText.trim());
-      noteText = '';
-    } finally {
-      saving = false;
-    }
+  async function handleApprove() {
+    await boardStore.moveToStatus(feature.id, 'done');
+    onclose?.();
   }
 
-  async function handleMoveToDone() {
-    await boardStore.moveToStatus(feature.id, 'done');
+  async function handleReject() {
+    if (!rejectReason.trim()) return;
+    await boardStore.rejectFeature(feature.id, rejectReason.trim());
     onclose?.();
   }
 
@@ -87,11 +83,9 @@
           {/if}
         </div>
       </div>
-      <button
+      <Button variant="ghost" size="icon" title="Close" class="shrink-0 mt-0.5 w-7 h-7"
         onclick={onclose}
-        class="w-7 h-7 flex items-center justify-center rounded text-text-muted hover:text-text-primary hover:bg-bg-elevated transition-colors shrink-0 mt-0.5"
-        title="Close"
-      ><Icon name="x-lg" size="14" /></button>
+      ><Icon name="x-lg" size="14" /></Button>
     </div>
 
     <!-- Scrollable Content -->
@@ -200,50 +194,46 @@
         </div>
       {/if}
 
-      <!-- Manual Notes -->
-      <div>
-        <h3 class="text-xs font-semibold text-th-green mb-1">Your Notes</h3>
-        {#if (feature.manualNotes || []).length}
-          <div class="space-y-2 mb-3">
-            {#each feature.manualNotes as note}
-              <div class="px-3 py-2 bg-bg-elevated rounded-md border border-border-subtle text-xs text-text-primary whitespace-pre-wrap">{note}</div>
+      <!-- Rejection Feedback -->
+      {#if (feature.rejectNotes || []).length}
+        <div>
+          <h3 class="text-xs font-semibold text-th-red mb-1">Rejection Feedback</h3>
+          <div class="space-y-2">
+            {#each feature.rejectNotes as note}
+              <div class="px-3 py-2 bg-th-red/5 rounded-md border border-th-red/30 text-xs text-text-primary whitespace-pre-wrap">{note}</div>
             {/each}
           </div>
-        {/if}
-        <div class="flex gap-2">
-          <textarea
-            bind:value={noteText}
-            rows="2"
-            class="flex-1 px-3 py-2 text-xs bg-bg-elevated text-text-primary border border-border-default rounded-md
-                   placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-accent resize-none"
-            placeholder="Add a note..."
-          ></textarea>
-          <button
-            onclick={handleAddNote}
-            disabled={saving || !noteText.trim()}
-            class="px-3 py-1.5 text-xs bg-accent text-crust rounded-md hover:opacity-90
-                   disabled:opacity-50 disabled:cursor-not-allowed transition-opacity self-end"
-          >
-            {saving ? '...' : 'Add'}
-          </button>
         </div>
-      </div>
+      {/if}
     </div>
 
     <!-- Action Bar -->
-    <div class="flex items-center gap-2 px-6 py-3 border-t border-border-subtle shrink-0">
-      {#if feature.status === 'review'}
-        <button
-          onclick={handleMoveToDone}
-          class="px-4 py-1.5 text-xs bg-th-green text-crust rounded-md hover:opacity-90 transition-opacity"
-        >Move to Done</button>
+    <div class="px-6 py-3 border-t border-border-subtle shrink-0 space-y-2">
+      {#if showRejectForm}
+        <div class="flex flex-col gap-2">
+          <textarea
+            bind:value={rejectReason}
+            rows="3"
+            class="w-full px-3 py-2 text-xs bg-bg-elevated text-text-primary border border-th-red/30 rounded-md
+                   placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-th-red resize-y"
+            placeholder="Explain why this task is being rejected..."
+          ></textarea>
+          <div class="flex items-center gap-2">
+            <Button variant="danger" size="sm" disabled={!rejectReason.trim()} onclick={handleReject}>Submit Rejection</Button>
+            <Button variant="secondary" size="sm" onclick={() => { showRejectForm = false; rejectReason = ''; }}>Cancel</Button>
+          </div>
+        </div>
+      {:else}
+        <div class="flex items-center gap-2">
+          {#if feature.status === 'review'}
+            <Button variant="success" size="sm" onclick={handleApprove}>Approve</Button>
+            <Button variant="danger" size="sm" onclick={() => showRejectForm = true}>Reject</Button>
+          {/if}
+          <Button variant="secondary" size="sm" onclick={() => onEdit?.(feature)}>Edit</Button>
+          <div class="flex-1"></div>
+          <span class="text-[10px] text-text-muted font-mono">{feature.id.slice(0, 8)}</span>
+        </div>
       {/if}
-      <button
-        onclick={() => onEdit?.(feature)}
-        class="px-4 py-1.5 text-xs bg-bg-elevated text-text-primary border border-border-default rounded-md hover:border-accent/50 transition-colors"
-      >Edit</button>
-      <div class="flex-1"></div>
-      <span class="text-[10px] text-text-muted font-mono">{feature.id.slice(0, 8)}</span>
     </div>
   </div>
 </div>

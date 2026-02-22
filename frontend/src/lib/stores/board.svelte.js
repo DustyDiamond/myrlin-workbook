@@ -97,14 +97,15 @@ function createBoardStore() {
       }
     },
 
-    async addManualNote(featureId, text) {
+    async rejectFeature(featureId, reason) {
       const feature = features.find(f => f.id === featureId);
       if (!feature) return;
       const timestamp = new Date().toISOString();
-      const note = `[${timestamp}] ${text}`;
-      const updated = [...(feature.manualNotes || []), note];
+      const note = `[${timestamp}] ${reason}`;
+      const updated = [...(feature.rejectNotes || []), note];
       const data = await api('PUT', `/api/features/${featureId}`, {
-        manualNotes: updated,
+        rejectNotes: updated,
+        status: 'planned',
       });
       if (data.feature) {
         features = features.map(f => f.id === featureId ? data.feature : f);

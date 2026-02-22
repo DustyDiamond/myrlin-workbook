@@ -48,7 +48,7 @@
   onclick={onclose}
 >
   <div
-    class="w-full max-w-md bg-bg-secondary rounded-xl border border-border-default shadow-xl p-6"
+    class="w-full max-w-2xl bg-bg-secondary rounded-xl border border-border-default shadow-xl p-6"
     onclick={(e) => e.stopPropagation()}
   >
     <h2 class="text-base font-semibold text-text-primary mb-4">
@@ -73,9 +73,9 @@
         <textarea
           id="feat-desc"
           bind:value={description}
-          rows="3"
+          rows="6"
           class="w-full px-3 py-2 text-sm bg-bg-elevated text-text-primary border border-border-default rounded-md
-                 placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-accent resize-none"
+                 placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-accent resize-y"
           placeholder="Optional description"
         ></textarea>
       </div>

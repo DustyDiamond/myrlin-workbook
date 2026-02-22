@@ -129,6 +129,7 @@ class Store extends EventEmitter {
         if (feature.maxRetries === undefined) feature.maxRetries = 3;
         if (feature.executeNotes === undefined) feature.executeNotes = [];
         if (feature.manualNotes === undefined) feature.manualNotes = [];
+        if (feature.rejectNotes === undefined) feature.rejectNotes = [];
       }
       return state;
     } catch (_) {
@@ -756,7 +757,7 @@ class Store extends EventEmitter {
     filesToModify = [], filesToCreate = [], contextFiles = [], acceptanceCriteria = [],
     dependsOn = [], complexity = null, wave = null, specDocument = null,
     reviewNotes = [], attempts = 0, maxRetries = 3,
-    executeNotes = [], manualNotes = [],
+    executeNotes = [], manualNotes = [], rejectNotes = [],
   }) {
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
@@ -779,6 +780,7 @@ class Store extends EventEmitter {
       reviewNotes, // accumulated failure reasons from review loop
       executeNotes, // execution notes from /execute skill
       manualNotes, // manual review notes from the user
+      rejectNotes, // user rejection feedback notes
       attempts, // how many times executed
       maxRetries, // max retry count before escalation
       createdAt: now,

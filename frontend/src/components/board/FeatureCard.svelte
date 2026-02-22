@@ -1,6 +1,7 @@
 <script>
   import { stringToColor } from '$lib/utils.js';
   import Icon from '../shared/Icon.svelte';
+  import Button from '../shared/Button.svelte';
 
   let { feature, onEdit, onDelete, onSelect } = $props();
 
@@ -68,27 +69,15 @@
 
     <!-- Action icons (visible on hover) -->
     <div class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-      <!-- Expand / detail button -->
-      <button
+      <Button variant="ghost" size="icon" title="View details" draggable="false"
         onclick={(e) => { e.stopPropagation(); onSelect?.(feature); }}
-        class="w-6 h-6 flex items-center justify-center rounded text-text-muted hover:text-accent hover:bg-accent/10 transition-colors"
-        title="View details"
-        draggable="false"
-      ><Icon name="box-arrow-up-right" size="12" /></button>
-      <!-- Edit button -->
-      <button
+      ><Icon name="box-arrow-up-right" size="12" /></Button>
+      <Button variant="ghost" size="icon" title="Edit feature" draggable="false"
         onclick={(e) => { e.stopPropagation(); onEdit?.(feature); }}
-        class="w-6 h-6 flex items-center justify-center rounded text-text-muted hover:text-accent hover:bg-accent/10 transition-colors"
-        title="Edit feature"
-        draggable="false"
-      ><Icon name="pencil" size="12" /></button>
-      <!-- Delete button -->
-      <button
+      ><Icon name="pencil" size="12" /></Button>
+      <Button variant="danger" size="icon" title="Delete feature" draggable="false"
         onclick={(e) => { e.stopPropagation(); onDelete?.(feature); }}
-        class="w-6 h-6 flex items-center justify-center rounded text-text-muted hover:text-th-red hover:bg-th-red/10 transition-colors"
-        title="Delete feature"
-        draggable="false"
-      ><Icon name="x-lg" size="12" /></button>
+      ><Icon name="x-lg" size="12" /></Button>
     </div>
   </div>
 
@@ -122,18 +111,15 @@
     style:top="{menuY}px"
     onclick={(e) => e.stopPropagation()}
   >
-    <button
+    <Button variant="ghost" size="sm" class="w-full text-left flex items-center gap-2 rounded-none"
       onclick={() => menuAction('view')}
-      class="w-full px-3 py-1.5 text-xs text-text-primary hover:bg-accent/10 text-left flex items-center gap-2"
-    ><Icon name="eye" size="14" /> View Details</button>
-    <button
+    ><Icon name="eye" size="14" /> View Details</Button>
+    <Button variant="ghost" size="sm" class="w-full text-left flex items-center gap-2 rounded-none"
       onclick={() => menuAction('edit')}
-      class="w-full px-3 py-1.5 text-xs text-text-primary hover:bg-accent/10 text-left flex items-center gap-2"
-    ><Icon name="pencil" size="14" /> Edit</button>
+    ><Icon name="pencil" size="14" /> Edit</Button>
     <div class="border-t border-border-subtle my-1"></div>
-    <button
+    <Button variant="danger" size="sm" class="w-full text-left flex items-center gap-2 rounded-none"
       onclick={() => menuAction('delete')}
-      class="w-full px-3 py-1.5 text-xs text-th-red hover:bg-th-red/10 text-left flex items-center gap-2"
-    ><Icon name="x-lg" size="14" /> Delete</button>
+    ><Icon name="x-lg" size="14" /> Delete</Button>
   </div>
 {/if}
